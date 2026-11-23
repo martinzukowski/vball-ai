@@ -30,12 +30,12 @@ ROOT = Path(__file__).resolve().parent
 
 def pytest_asyncio_loop_factories(
     config: pytest.Config, item: pytest.Item
-) -> Mapping[str, Callable[[], asyncio.AbstractEventLoop]] | None:
+) -> Mapping[str, Callable[[], asyncio.AbstractEventLoop]]:
     # psycopg's async driver cannot use Windows' default Proactor loop. Deployed code runs on
     # Linux, so this only matters for running the tests on a Windows machine.
     if sys.platform == "win32":
         return {"selector": asyncio.SelectorEventLoop}
-    return None
+    return {"default": asyncio.new_event_loop}
 
 
 def _admin_url() -> str:
