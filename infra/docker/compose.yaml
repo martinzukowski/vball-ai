@@ -51,7 +51,7 @@ services:
       VBALL_ENV: local
       VBALL_LOG_JSON: "false"
       VBALL_DATABASE_URL: postgresql+psycopg://vball:vball-local-only@postgres:5432/vball
-      VBALL_CORS_ORIGINS: http://localhost:3000
+      VBALL_CORS_ORIGINS: ${VBALL_CORS_ORIGINS:-http://localhost:3000}
       VBALL_SUPABASE_URL: ${VBALL_SUPABASE_URL:-}
     ports: ["8000:8000"]
     depends_on:
