@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "vball-local",
+      "credentials": [{ "accessKey": "vball-local", "secretKey": "vball-local-only-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

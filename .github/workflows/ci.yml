@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python (lint, types, tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: vball
+          POSTGRES_PASSWORD: vball-ci-only
+          POSTGRES_DB: vball
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vball -d vball"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      VBALL_TEST_DATABASE_URL: postgresql+psycopg://vball:vball-ci-only@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest
+
+  api-contract:
+    name: OpenAPI client is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: uv sync --frozen
+      - run: pnpm install --frozen-lockfile
+      - run: uv run vball-api-openapi apps/web/openapi.json
+      - run: pnpm api:types
+      - name: Fail if generated files changed
+        run: |
+          git diff --exit-code -- apps/web/openapi.json apps/web/src/lib/api/schema.d.ts \
+            || { echo "::error::Regenerate with: uv run vball-api-openapi apps/web/openapi.json && pnpm api:types"; exit 1; }
+
+  web:
+    name: Web (lint, types, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm web:lint
+      - run: pnpm web:typecheck
+      - run: pnpm web:build
+
+  docker:
+    name: API image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f infra/docker/api.Dockerfile -t vball-api:ci .
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

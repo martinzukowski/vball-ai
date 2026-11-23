@@ -1,0 +1,12 @@
+{
+  "name": "vball-ai",
+  "private": true,
+  "packageManager": "pnpm@12.23.0",
+  "scripts": {
+    "web:dev": "pnpm --filter @vball/web dev",
+    "web:lint": "pnpm --filter @vball/web lint",
+    "web:typecheck": "pnpm --filter @vball/web typecheck",
+    "web:build": "pnpm --filter @vball/web build",
+    "api:types": "pnpm --filter @vball/web api:types"
+  }
+}

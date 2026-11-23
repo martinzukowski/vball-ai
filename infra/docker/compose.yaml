@@ -1,0 +1,66 @@
+# Local development stack. Run from the repo root:
+#   docker compose -f infra/docker/compose.yaml up --build
+# Web app runs outside Docker: pnpm web:dev
+name: vball
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: vball
+      POSTGRES_PASSWORD: vball-local-only
+      POSTGRES_DB: vball
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vball -d vball"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # S3-compatible stand-in for Cloudflare R2 (local only; used from M3 onward).
+  # Credentials live in seaweedfs-s3.json and are for this local container only.
+  s3:
+    image: chrislusf/seaweedfs:4.55
+    command: ["server", "-dir=/data", "-s3", "-s3.config=/etc/seaweedfs/s3.json"]
+    ports: ["8333:8333"]
+    volumes:
+      - s3data:/data
+      - ./seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      VBALL_DATABASE_URL: postgresql+psycopg://vball:vball-local-only@postgres:5432/vball
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    environment:
+      VBALL_ENV: local
+      VBALL_LOG_JSON: "false"
+      VBALL_DATABASE_URL: postgresql+psycopg://vball:vball-local-only@postgres:5432/vball
+      VBALL_CORS_ORIGINS: http://localhost:3000
+    ports: ["8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  s3data:
