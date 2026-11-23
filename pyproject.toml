@@ -35,7 +35,7 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "ASYNC", "PT"]
 ignore = ["S101"]  # asserts are fine in tests
 
 [tool.ruff.lint.isort]
-known-first-party = ["vball_core", "vball_api", "conftest"]
+known-first-party = ["vball_core", "vball_api", "conftest", "authkit"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S105", "S106", "S608"]
@@ -52,5 +52,6 @@ testpaths = ["packages/vball_core/tests", "services/api/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --import-mode=importlib"
+pythonpath = ["services/api/tests"]
 markers = ["db: needs a PostgreSQL server (VBALL_TEST_DATABASE_URL)"]

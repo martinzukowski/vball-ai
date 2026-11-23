@@ -44,6 +44,54 @@
         "title": "Health",
         "type": "object"
       },
+      "Me": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "quota_minutes_month": {
+            "title": "Quota Minutes Month",
+            "type": "integer"
+          },
+          "quota_storage_bytes": {
+            "title": "Quota Storage Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "quota_storage_bytes",
+          "quota_minutes_month"
+        ],
+        "title": "Me",
+        "type": "object"
+      },
       "Readiness": {
         "properties": {
           "checks": {
@@ -68,6 +116,13 @@
         ],
         "title": "Readiness",
         "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "description": "Supabase Auth access token",
+        "scheme": "bearer",
+        "type": "http"
       }
     }
   },
@@ -96,6 +151,32 @@
         "summary": "Healthz",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Me",
+        "tags": [
+          "account"
         ]
       }
     },

@@ -16,7 +16,7 @@ import asyncio
 import os
 import sys
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 
 import pytest
@@ -28,13 +28,14 @@ from sqlalchemy.engine import make_url
 ROOT = Path(__file__).resolve().parent
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy() -> asyncio.AbstractEventLoopPolicy:
+def pytest_asyncio_loop_factories(
+    config: pytest.Config, item: pytest.Item
+) -> Mapping[str, Callable[[], asyncio.AbstractEventLoop]] | None:
     # psycopg's async driver cannot use Windows' default Proactor loop. Deployed code runs on
     # Linux, so this only matters for running the tests on a Windows machine.
     if sys.platform == "win32":
-        return asyncio.WindowsSelectorEventLoopPolicy()
-    return asyncio.DefaultEventLoopPolicy()
+        return {"selector": asyncio.SelectorEventLoop}
+    return None
 
 
 def _admin_url() -> str:
