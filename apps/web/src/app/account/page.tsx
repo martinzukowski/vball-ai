@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -20,6 +21,9 @@ export default function AccountPage() {
 }
 
 async function SignedInUser() {
+  // Session checks compare token expiry with the current time, so this must render per request
+  // (Cache Components would otherwise try to prerender it).
+  await connection();
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims;
