@@ -29,8 +29,16 @@ jobs:
           --health-interval 2s --health-timeout 3s --health-retries 30
     env:
       VBALL_TEST_DATABASE_URL: postgresql+psycopg://vball:vball-ci-only@localhost:5432/postgres
+      VBALL_TEST_S3_ENDPOINT: http://localhost:8333
+      VBALL_TEST_S3_KEY: vball-local
+      VBALL_TEST_S3_SECRET: vball-local-only-secret
     steps:
       - uses: actions/checkout@v5
+      # S3-compatible server for upload tests (service containers can't take a command).
+      - name: Start SeaweedFS S3
+        run: |
+          docker run -d --name s3 -p 8333:8333             -v "$PWD/infra/docker/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro"             chrislusf/seaweedfs:4.55 server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json
+          for i in $(seq 1 60); do curl -sf http://localhost:8333/healthz && break; sleep 1; done
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -75,6 +83,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm web:lint
       - run: pnpm web:typecheck
+      - run: pnpm --filter @vball/web test
       - run: pnpm web:build
 
   docker:

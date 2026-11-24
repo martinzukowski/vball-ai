@@ -50,12 +50,16 @@ async def test_readyz_reports_unreachable_database(
 
 
 @pytest.mark.db
-async def test_readyz_ok_with_database(migrated_url: str) -> None:
+async def test_readyz_needs_storage_too(migrated_url: str) -> None:
+    # Database reachable but no storage configured: not ready, and says why.
     app = create_app(make_settings(migrated_url))
     async for client in client_for(app):
         r = await client.get("/readyz")
-        assert r.status_code == 200
-        assert r.json() == {"status": "ready", "checks": {"database": {"ok": True, "error": None}}}
+        assert r.status_code == 503
+        assert r.json()["checks"] == {
+            "database": {"ok": True, "error": None},
+            "storage": {"ok": False, "error": "not configured"},
+        }
 
 
 async def test_cors_allows_only_configured_origin(unreachable_db_client: httpx.AsyncClient) -> None:

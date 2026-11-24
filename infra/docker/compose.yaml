@@ -53,9 +53,16 @@ services:
       VBALL_DATABASE_URL: postgresql+psycopg://vball:vball-local-only@postgres:5432/vball
       VBALL_CORS_ORIGINS: ${VBALL_CORS_ORIGINS:-http://localhost:3000}
       VBALL_SUPABASE_URL: ${VBALL_SUPABASE_URL:-}
+      # Local S3 stand-in. The browser reaches it on localhost, the API inside the network.
+      VBALL_S3_ENDPOINT_URL: http://s3:8333
+      VBALL_S3_PUBLIC_ENDPOINT_URL: http://localhost:8333
+      VBALL_S3_ACCESS_KEY_ID: vball-local
+      VBALL_S3_SECRET_ACCESS_KEY: vball-local-only-secret
+      VBALL_S3_BUCKET: vball
     ports: ["8000:8000"]
     depends_on:
       migrate: { condition: service_completed_successfully }
+      s3: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 5s

@@ -6,15 +6,17 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import httpx
+from anyio import to_thread
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from vball_api.auth.jwt import JwksCache, TokenVerifier
-from vball_api.routers import health, me
+from vball_api.routers import health, me, videos
 from vball_core import __version__
 from vball_core.db.session import create_engine, create_sessionmaker
 from vball_core.logging import configure_logging, get_logger
-from vball_core.settings import Settings, get_settings
+from vball_core.settings import Environment, Settings, get_settings
+from vball_core.storage import ObjectStorage
 
 # Routes reachable without a bearer token. Every other route must require auth; a test walks
 # the route table to enforce this.
@@ -47,6 +49,14 @@ def create_app(
             if auth_base
             else None
         )
+        app.state.storage = ObjectStorage(settings) if settings.storage_configured else None
+        if app.state.storage is None:
+            log.warning("storage_not_configured", hint="set VBALL_S3_* variables")
+        elif settings.env in (Environment.LOCAL, Environment.TEST):
+            try:  # convenience for the local S3 stand-in; production buckets are pre-created
+                await to_thread.run_sync(app.state.storage.ensure_bucket)
+            except Exception as exc:
+                log.warning("storage_bucket_check_failed", error=type(exc).__name__)
         if auth_base is None:
             log.warning("auth_not_configured", hint="set VBALL_SUPABASE_URL")
         log.info("api_started", env=settings.env.value, version=__version__)
@@ -69,4 +79,5 @@ def create_app(
     )
     app.include_router(health.router)
     app.include_router(me.router)
+    app.include_router(videos.router)
     return app

@@ -82,7 +82,7 @@ class Profile(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     display_name: Mapped[str | None] = mapped_column(sa.String(100))
     quota_storage_bytes: Mapped[int] = mapped_column(
-        sa.BigInteger, nullable=False, server_default=sa.text(str(50 * 1024**3))
+        sa.BigInteger, nullable=False, server_default=sa.text(str(9 * 1024**3))
     )
     quota_minutes_month: Mapped[int] = mapped_column(
         sa.Integer, nullable=False, server_default=sa.text("600")

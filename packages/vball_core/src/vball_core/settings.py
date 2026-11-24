@@ -48,6 +48,26 @@ class Settings(BaseSettings):
     jwt_audience: str = "authenticated"
     jwks_cache_ttl_s: int = Field(default=600, ge=30, le=86400)
 
+    # S3-compatible object storage (Cloudflare R2 in production, SeaweedFS locally).
+    s3_endpoint_url: str | None = None
+    # Endpoint used in presigned URLs handed to the browser. Differs from s3_endpoint_url only
+    # locally, where the API reaches storage at http://s3:8333 but the browser at localhost.
+    s3_public_endpoint_url: str | None = None
+    s3_region: str = "auto"
+    s3_access_key_id: SecretStr | None = None
+    s3_secret_access_key: SecretStr | None = None
+    s3_bucket: str = "vball"
+
+    # Uploads. R2's free tier is 10 GB in total, so stored bytes are capped below that.
+    max_upload_bytes: int = Field(default=20 * 1024**3, gt=0)
+    storage_cap_bytes: int = Field(default=9 * 1024**3, gt=0)
+    upload_url_ttl_s: int = Field(default=3600, ge=60, le=7 * 86400)
+    upload_expiry_s: int = Field(default=7 * 86400, ge=3600)
+
+    @property
+    def storage_configured(self) -> bool:
+        return self.s3_access_key_id is not None and self.s3_secret_access_key is not None
+
     @model_validator(mode="after")
     def _auth_required_when_deployed(self) -> Settings:
         if self.supabase_url is None and self.env in (Environment.STAGING, Environment.PRODUCTION):

@@ -25,7 +25,12 @@ from alembic.config import Config
 from sqlalchemy import Connection, Engine, create_engine, text
 from sqlalchemy.engine import make_url
 
+from vball_core.settings import Settings
+
 ROOT = Path(__file__).resolve().parent
+
+# Tests build their own Settings; never let a developer's local .env leak into them.
+Settings.model_config["env_file"] = None
 
 
 def pytest_asyncio_loop_factories(
@@ -45,6 +50,31 @@ def _admin_url() -> str:
             pytest.fail("VBALL_TEST_DATABASE_URL must be set in CI")
         pytest.skip("VBALL_TEST_DATABASE_URL not set")
     return url
+
+
+def _required_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        if os.environ.get("CI"):
+            pytest.fail(f"{name} must be set in CI")
+        pytest.skip(f"{name} not set")
+    return value
+
+
+@pytest.fixture(scope="session")
+def s3_env() -> dict[str, str]:
+    """Connection details for an S3-compatible server (the local SeaweedFS container).
+
+    VBALL_TEST_S3_ENDPOINT=http://localhost:8333 VBALL_TEST_S3_KEY=vball-local
+    VBALL_TEST_S3_SECRET=vball-local-only-secret
+    Each test session uses its own bucket.
+    """
+    return {
+        "endpoint": _required_env("VBALL_TEST_S3_ENDPOINT"),
+        "key": _required_env("VBALL_TEST_S3_KEY"),
+        "secret": _required_env("VBALL_TEST_S3_SECRET"),
+        "bucket": f"vball-test-{uuid.uuid4().hex[:10]}",
+    }
 
 
 def alembic_config(url: str) -> Config:

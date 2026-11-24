@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from anyio import to_thread
 from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -44,10 +45,7 @@ async def healthz() -> Health:
     responses={503: {"model": Readiness}},
 )
 async def readyz(request: Request, response: Response) -> Readiness:
-    """Readiness: dependencies needed to serve requests are reachable.
-
-    Object storage is added to these checks when uploads land (M3).
-    """
+    """Readiness: the database and object storage are reachable."""
     engine: AsyncEngine = request.app.state.engine
     checks: dict[str, CheckResult] = {}
     try:
@@ -57,6 +55,17 @@ async def readyz(request: Request, response: Response) -> Readiness:
     except Exception as exc:
         log.warning("readiness_db_failed", error=type(exc).__name__)
         checks["database"] = CheckResult(ok=False, error=type(exc).__name__)
+
+    storage = request.app.state.storage
+    if storage is None:
+        checks["storage"] = CheckResult(ok=False, error="not configured")
+    else:
+        try:
+            await to_thread.run_sync(storage.check)
+            checks["storage"] = CheckResult(ok=True)
+        except Exception as exc:
+            log.warning("readiness_storage_failed", error=type(exc).__name__)
+            checks["storage"] = CheckResult(ok=False, error=type(exc).__name__)
 
     ready = all(c.ok for c in checks.values())
     if not ready:

@@ -25,6 +25,46 @@
         "title": "CheckResult",
         "type": "object"
       },
+      "CreateUpload": {
+        "properties": {
+          "content_type": {
+            "default": "",
+            "maxLength": 100,
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "size_bytes"
+        ],
+        "title": "CreateUpload",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -92,6 +132,90 @@
         "title": "Me",
         "type": "object"
       },
+      "PartUrl": {
+        "properties": {
+          "part_number": {
+            "title": "Part Number",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "part_number",
+          "url"
+        ],
+        "title": "PartUrl",
+        "type": "object"
+      },
+      "PartUrls": {
+        "properties": {
+          "expires_in_s": {
+            "title": "Expires In S",
+            "type": "integer"
+          },
+          "urls": {
+            "items": {
+              "$ref": "#/components/schemas/PartUrl"
+            },
+            "title": "Urls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "urls",
+          "expires_in_s"
+        ],
+        "title": "PartUrls",
+        "type": "object"
+      },
+      "PartUrlsRequest": {
+        "properties": {
+          "part_numbers": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Part Numbers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "part_numbers"
+        ],
+        "title": "PartUrlsRequest",
+        "type": "object"
+      },
+      "PlaybackUrl": {
+        "properties": {
+          "expires_in_s": {
+            "title": "Expires In S",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "proxy",
+              "original"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "kind",
+          "expires_in_s"
+        ],
+        "title": "PlaybackUrl",
+        "type": "object"
+      },
       "Readiness": {
         "properties": {
           "checks": {
@@ -116,6 +240,260 @@
         ],
         "title": "Readiness",
         "type": "object"
+      },
+      "StorageUsage": {
+        "properties": {
+          "cap_bytes": {
+            "title": "Cap Bytes",
+            "type": "integer"
+          },
+          "used_bytes": {
+            "title": "Used Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "used_bytes",
+          "cap_bytes"
+        ],
+        "title": "StorageUsage",
+        "type": "object"
+      },
+      "UploadPlan": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "part_count": {
+            "title": "Part Count",
+            "type": "integer"
+          },
+          "part_size_bytes": {
+            "title": "Part Size Bytes",
+            "type": "integer"
+          },
+          "video": {
+            "$ref": "#/components/schemas/VideoOut"
+          }
+        },
+        "required": [
+          "video",
+          "part_size_bytes",
+          "part_count",
+          "expires_at"
+        ],
+        "title": "UploadPlan",
+        "type": "object"
+      },
+      "UploadState": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "part_count": {
+            "title": "Part Count",
+            "type": "integer"
+          },
+          "part_size_bytes": {
+            "title": "Part Size Bytes",
+            "type": "integer"
+          },
+          "uploaded_parts": {
+            "items": {
+              "$ref": "#/components/schemas/UploadedPartOut"
+            },
+            "title": "Uploaded Parts",
+            "type": "array"
+          },
+          "video": {
+            "$ref": "#/components/schemas/VideoOut"
+          }
+        },
+        "required": [
+          "video",
+          "part_size_bytes",
+          "part_count",
+          "uploaded_parts",
+          "expires_at"
+        ],
+        "title": "UploadState",
+        "type": "object"
+      },
+      "UploadedPartOut": {
+        "properties": {
+          "part_number": {
+            "title": "Part Number",
+            "type": "integer"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "part_number",
+          "size_bytes"
+        ],
+        "title": "UploadedPartOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VideoList": {
+        "properties": {
+          "storage": {
+            "$ref": "#/components/schemas/StorageUsage"
+          },
+          "videos": {
+            "items": {
+              "$ref": "#/components/schemas/VideoOut"
+            },
+            "title": "Videos",
+            "type": "array"
+          }
+        },
+        "required": [
+          "videos",
+          "storage"
+        ],
+        "title": "VideoList",
+        "type": "object"
+      },
+      "VideoOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VideoStatus"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "size_bytes",
+          "status",
+          "created_at",
+          "duration_s",
+          "width",
+          "height",
+          "error_message"
+        ],
+        "title": "VideoOut",
+        "type": "object"
+      },
+      "VideoStatus": {
+        "enum": [
+          "uploading",
+          "uploaded",
+          "ingesting",
+          "ready",
+          "failed",
+          "deleted"
+        ],
+        "title": "VideoStatus",
+        "type": "string"
       }
     },
     "securitySchemes": {
@@ -182,7 +560,7 @@
     },
     "/readyz": {
       "get": {
-        "description": "Readiness: dependencies needed to serve requests are reachable.\n\nObject storage is added to these checks when uploads land (M3).",
+        "description": "Readiness: the database and object storage are reachable.",
         "operationId": "getReadiness",
         "responses": {
           "200": {
@@ -209,6 +587,368 @@
         "summary": "Readyz",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/videos": {
+      "get": {
+        "operationId": "listVideos",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Videos",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/uploads": {
+      "post": {
+        "operationId": "createUpload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPlan"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Upload",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}": {
+      "delete": {
+        "operationId": "deleteVideo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Video",
+        "tags": [
+          "videos"
+        ]
+      },
+      "get": {
+        "operationId": "getVideo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Video",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}/playback": {
+      "get": {
+        "description": "Short-lived URL to stream the video: the browser-friendly proxy once it exists, else\nthe original upload (which may not play in every browser, e.g. HEVC on some Androids).",
+        "operationId": "getPlaybackUrl",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackUrl"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Playback Url",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}/upload": {
+      "get": {
+        "operationId": "getUploadState",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Upload State",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}/upload/complete": {
+      "post": {
+        "operationId": "completeUpload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete Upload",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}/upload/parts": {
+      "post": {
+        "operationId": "presignParts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartUrlsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartUrls"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Presign Parts",
+        "tags": [
+          "videos"
         ]
       }
     }

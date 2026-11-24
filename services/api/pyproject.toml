@@ -9,6 +9,7 @@ dependencies = [
     "uvicorn[standard]>=0.34",
     "pyjwt[crypto]>=2.10",
     "httpx>=0.28",
+    "anyio>=4.8",
 ]
 
 [project.scripts]

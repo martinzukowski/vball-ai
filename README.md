@@ -3,8 +3,8 @@
 Cloud volleyball video analysis: upload a match from your phone, get rallies (and later
 players, ball tracking, actions and statistics) computed on remote workers.
 
-**Status: milestones M0–M2 (foundation, database schema, sign-in).** There is no upload or
-analysis yet. Sign-in needs a Supabase project: see [docs/setup-supabase.md](docs/setup-supabase.md).
+**Status: milestones M0–M3 (foundation, database, sign-in, uploads).** No analysis yet.
+Progress log and decisions: [docs/PROGRESS.md](docs/PROGRESS.md). Sign-in needs a Supabase project: see [docs/setup-supabase.md](docs/setup-supabase.md).
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the milestone plan.
 
