@@ -2,14 +2,13 @@
 
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ChangeEvent,
 } from "react";
 
-import { createAuthedApi } from "@/lib/api/authed";
+import { authedApi } from "@/lib/api/authed";
 import { formatBytes } from "@/lib/format";
 import { browserPort, localPendingStore, pendingUploads } from "@/lib/upload/browser-port";
 import { uploadFile, UploadAbortedError, type Progress } from "@/lib/upload/engine";
@@ -21,7 +20,6 @@ type State =
   | { kind: "error"; name: string; message: string };
 
 export function Uploader({ onUploaded }: { onUploaded: () => void }) {
-  const api = useMemo(() => createAuthedApi(), []);
   const [state, setState] = useState<State>({ kind: "idle" });
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +55,7 @@ export function Uploader({ onUploaded }: { onUploaded: () => void }) {
       progress: { sentBytes: 0, totalBytes: file.size, partsDone: 0, partCount: 0 },
     });
     try {
-      await uploadFile(file, browserPort(api), localPendingStore, {
+      await uploadFile(file, browserPort(authedApi()), localPendingStore, {
         signal: ctrl.signal,
         onProgress: (progress) => {
           if (startBytes < 0) startBytes = progress.sentBytes; // resumed bytes don't count to speed

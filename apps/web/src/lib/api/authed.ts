@@ -19,6 +19,15 @@ export function createAuthedApi() {
 
 export type AuthedApi = ReturnType<typeof createAuthedApi>;
 
+let shared: AuthedApi | null = null;
+
+/** Shared client, created on first use. Call only from effects or event handlers (browser),
+ *  never during render: rendering also happens on the server at build time. */
+export function authedApi(): AuthedApi {
+  shared ??= createAuthedApi();
+  return shared;
+}
+
 /** Human-readable message from an API error body ({detail: string | [...]}). */
 export function apiErrorMessage(error: unknown, status: number): string {
   if (error && typeof error === "object" && "detail" in error) {

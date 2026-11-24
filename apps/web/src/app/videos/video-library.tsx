@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { apiErrorMessage, createAuthedApi } from "@/lib/api/authed";
+import { apiErrorMessage, authedApi } from "@/lib/api/authed";
 import type { components } from "@/lib/api/schema";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
 
@@ -21,7 +21,6 @@ const STATUS_LABEL: Record<Video["status"], { text: string; tone: string }> = {
 };
 
 export function VideoLibrary() {
-  const api = useMemo(() => createAuthedApi(), []);
   const [videos, setVideos] = useState<Video[] | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +29,7 @@ export function VideoLibrary() {
 
   useEffect(() => {
     let stale = false;
-    api.GET("/videos").then(({ data, error: err, response }) => {
+    authedApi().GET("/videos").then(({ data, error: err, response }) => {
       if (stale) return;
       if (!data) {
         setError(apiErrorMessage(err, response.status));
@@ -43,11 +42,11 @@ export function VideoLibrary() {
     return () => {
       stale = true;
     };
-  }, [api, reloadKey]);
+  }, [reloadKey]);
 
   async function remove(video: Video) {
     if (!confirm(`Delete "${video.filename}"? This removes the video and its analysis.`)) return;
-    const { error: err, response } = await api.DELETE("/videos/{video_id}", {
+    const { error: err, response } = await authedApi().DELETE("/videos/{video_id}", {
       params: { path: { video_id: video.id } },
     });
     if (!response.ok) setError(apiErrorMessage(err, response.status));
