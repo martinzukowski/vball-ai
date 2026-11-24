@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     upload_url_ttl_s: int = Field(default=3600, ge=60, le=7 * 86400)
     upload_expiry_s: int = Field(default=7 * 86400, ge=3600)
 
+    # Worker / ingest. Originals are deleted after a playback proxy exists unless
+    # keep_originals is set, to stay inside the storage free tier.
+    proxy_height: int = Field(default=720, ge=240, le=2160)
+    keep_originals: bool = False
+    max_video_duration_s: int = Field(default=4 * 3600, gt=0)
+    worker_poll_interval_s: float = Field(default=3.0, gt=0)
+    worker_scratch_dir: str | None = None
+
     @property
     def storage_configured(self) -> bool:
         return self.s3_access_key_id is not None and self.s3_secret_access_key is not None

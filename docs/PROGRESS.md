@@ -22,7 +22,7 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M1 Database schema + migrations | Done | |
 | M2 Sign-in (Supabase) | Done locally | Phone test waits for deployment (M8) |
 | M3 Direct uploads to object storage | Done locally | Needs Cloudflare R2 account for production |
-| M4 Job system + ingest worker | Next | Probe, 720p proxy, delete original |
+| M4 Job system + ingest worker | In progress | Queue done + tested; worker not started |
 | M5 Heuristic rally detection in worker | | |
 | M6 Review/correction web UI | | |
 | M7 Server-side highlights | | |
@@ -79,6 +79,52 @@ what comes next. Read this first when picking the project up. Design rationale l
   mismatch, validation, cross-user 404s, delete), 7 Vitest tests for the engine, and a real
   40 MB 3-part upload + delete in the browser while signed in.
 
+### M4 — Job system + ingest worker (in progress, 2026-11-24)
+Done:
+- `packages/vball_core/src/vball_core/jobs.py`: Postgres queue. Idempotent `enqueue`,
+  `claim` (SKIP LOCKED, increments attempt, 5-min lease), `heartbeat` (extends lease, raises
+  `LeaseLostError` if lost/cancelled; progress capped at 0.99), `succeed`/`fail` (only by the
+  lease holder; retryable failures back off 30s·2^n up to 10 min), `sweep` (requeue expired
+  leases or fail after max attempts; finalise cancelled queued jobs), `runnable_count`.
+- 12 tests in `packages/vball_core/tests/test_jobs.py` incl. 8 threads racing for 30 jobs.
+- Migration `0003`: `videos.proxy_size_bytes`. Settings: `proxy_height` (720),
+  `keep_originals` (false), `max_video_duration_s` (4 h), `worker_poll_interval_s`,
+  `worker_scratch_dir`.
+
+**Resume here — remaining M4 steps:**
+1. `services/worker` package (`vball_worker`): add to the uv workspace (`pyproject.toml`
+   members + sources) and mypy `files`.
+   - `media.py`: ffprobe JSON → duration, fps, displayed width/height, rotation (display
+     matrix), codecs, HDR transfer (`arib-std-b67`/`smpte2084`). Transcode proxy:
+     `scale=-2:'min(720,trunc(ih/2)*2)'`, libx264 veryfast CRF 26, yuv420p, `-fpsmax 60`,
+     keyframe every 2 s (`-force_key_frames expr:gte(t,n_forced*2)`), AAC 96k stereo,
+     `+faststart`, `-progress pipe:1` for progress. iPhone HDR → tone-map with zscale/tonemap
+     (check the Debian ffmpeg has libzimg). Poster JPEG from the proxy at ~10% of duration.
+   - `ingest.py`: download original (boto3 `download_file`) → sha256 → probe (non-video,
+     zero duration, > max duration → `INPUT_INVALID`, not retried) → proxy + poster → upload to
+     `proxies/{owner}/{video}.mp4` / `posters/...jpg` → set metadata, `proxy_key`,
+     `proxy_size_bytes`, status `ready` → delete original unless `keep_originals`
+     (`original_deleted_at`). Video status: `ingesting` on claim, `failed` + friendly
+     `error_message` when the job fails for good.
+   - `runner.py`: loop = sweep → reconcile videos stuck in `ingesting` whose ingest job failed
+     → claim → run handler with a heartbeat thread (20 s) → succeed/fail; classify errors
+     (input invalid / transient boto+network / internal); write `job_stage_metrics` per stage
+     (wall, cpu via `os.times()` incl. children). `__main__.py`: polling loop.
+   - Storage additions needed: `download(key, path)`, `upload(path, key, content_type)`.
+2. API: in `complete_upload`, enqueue the ingest job in the same transaction
+   (`await db.run_sync(lambda s: jobs.enqueue(s.connection(), ...))`, pipeline `ingest-1`).
+   Add latest-job info (state, stage, progress, error) to `VideoOut`; `stored_bytes` must count
+   `proxy_size_bytes` and only originals not yet deleted.
+3. `infra/docker/worker.Dockerfile` (python:3.12-slim + apt ffmpeg) and a `worker` service in
+   compose (same S3 env as the api service).
+4. Tests: ingest on a generated clip (`ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=30
+   -f lavfi -i sine -t 5 ...`) → proxy ≤720p, metadata, original deleted, status ready;
+   garbage bytes → failed `input_invalid`. CI: `sudo apt-get install -y ffmpeg` in the Python job.
+5. Web: show "Preparing… NN%" from the job and poll every 5 s while any video is
+   uploaded/ingesting; play the proxy.
+6. Measure wall/CPU time per minute of video on a real match and record it here (replaces the
+   cost estimates in ARCHITECTURE.md §12).
+
 ## Decisions to remember
 
 - **Storage budget.** Originals from phones are large (≈4–8 GB per hour at 1080p). Plan for M4:
@@ -90,8 +136,21 @@ what comes next. Read this first when picking the project up. Design rationale l
 
 ## Local environment notes
 
-- `.env` (repo root) and `apps/web/.env.local` hold local config; both git-ignored. Supabase
-  URL and publishable key are set; no secrets are committed.
+- `.env` (repo root) and `apps/web/.env.local` hold local config; both git-ignored, so they
+  must be recreated on a new machine:
+  - `.env`: copy `.env.example`, set `VBALL_SUPABASE_URL=https://hkfzpbzivnnwspckzjbi.supabase.co`
+    and `VBALL_CORS_ORIGINS=http://localhost:3000,http://localhost:3100`.
+  - `apps/web/.env.local`: `NEXT_PUBLIC_API_URL=http://localhost:8000`,
+    `NEXT_PUBLIC_SUPABASE_URL=https://hkfzpbzivnnwspckzjbi.supabase.co`,
+    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=` (Supabase → Project Settings → API Keys →
+    publishable key), `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=false`.
+- New machine setup: install Docker, uv, Node 22+, pnpm, ffmpeg; `uv sync`; `pnpm install`;
+  `docker compose -f infra/docker/compose.yaml --env-file .env up -d --build`;
+  `pnpm --filter @vball/web dev -p 3100`. If the new machine's web app runs on another
+  port, add `http://localhost:<port>/auth/callback` to Supabase → Authentication → URL
+  Configuration.
+- Pending from the owner: Cloudflare R2 account + `vball` bucket + API token (see M3 notes);
+  or say to switch to Backblaze B2 (no card needed).
 - Port 3000 is taken on the dev PC; the web app runs on 3100 (`pnpm --filter @vball/web dev -p 3100`).
 - Test env vars for S3 upload tests are in `.env.example` (`VBALL_TEST_S3_*`).
 - Windows blocks running `.venv\Scripts\*.exe`; run tools as `uv run python -m pytest`,

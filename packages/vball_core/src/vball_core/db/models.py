@@ -114,6 +114,7 @@ class Video(Base):
     original_key: Mapped[str] = mapped_column(sa.String(512), nullable=False, unique=True)
     proxy_key: Mapped[str | None] = mapped_column(sa.String(512), unique=True)
     poster_key: Mapped[str | None] = mapped_column(sa.String(512))
+    proxy_size_bytes: Mapped[int | None] = mapped_column(sa.BigInteger)
     original_deleted_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
     # Filled by the ingest job from ffprobe; NULL until then.
@@ -136,6 +137,9 @@ class Video(Base):
     __table_args__ = (
         sa.CheckConstraint("size_bytes > 0", name="size_positive"),
         sa.CheckConstraint("duration_s IS NULL OR duration_s > 0", name="duration_positive"),
+        sa.CheckConstraint(
+            "proxy_size_bytes IS NULL OR proxy_size_bytes > 0", name="proxy_size_positive"
+        ),
         sa.CheckConstraint(
             "num_nulls(fps_num, fps_den) <> 1 AND coalesce(fps_num > 0 AND fps_den > 0, true)",
             name="fps_valid",
