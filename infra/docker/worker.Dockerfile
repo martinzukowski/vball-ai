@@ -19,14 +19,16 @@ COPY pyproject.toml uv.lock .python-version ./
 COPY packages/vball_core/pyproject.toml packages/vball_core/pyproject.toml
 COPY services/api/pyproject.toml services/api/pyproject.toml
 COPY services/worker/pyproject.toml services/worker/pyproject.toml
+COPY ml/pyproject.toml ml/pyproject.toml
 RUN uv sync --frozen --no-dev --no-install-workspace --package vball-worker
 
 COPY packages/vball_core packages/vball_core
 COPY services/worker services/worker
+COPY ml ml
 RUN uv sync --frozen --no-dev --package vball-worker
 
 RUN useradd --create-home --uid 10001 app && mkdir -p /scratch && chown app /scratch
 USER app
-ENV PATH="/opt/venv/bin:$PATH" VBALL_WORKER_SCRATCH_DIR=/scratch
+ENV PATH="/opt/venv/bin:$PATH" VBALL_WORKER_SCRATCH_DIR=/scratch HF_HOME=/scratch/hf
 
 CMD ["python", "-m", "vball_worker"]

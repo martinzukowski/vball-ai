@@ -172,8 +172,18 @@ Also done (part 2):
 - Caveats: one match, one gym, one camera; the reference is Balltime (~+/-1 s), not
   hand-verified. Within-match CV can't show generalisation to other venues.
 - Cost: feature extraction 12 min CPU for 21 min of video on the dev laptop (GPU later).
-- Next: train on all labelled data, register the model (model_versions + artifact), run it in
-  the worker's analyze job with the heuristic as fallback; collect more varied matches.
+- Wired in (2026-11-25): `python -m vball_ml.train_rally MANIFEST OUT.pt --version V --metrics M
+  --register` trains an ensemble on all labelled matches, uploads it to
+  `models/rally/<V>/model.pt` and makes it the production rally model (previous -> retired),
+  recording held-out metrics. The worker's analyze job uses the production model
+  (`rally-learned-1`, detector `learned:<V>`, confidence = mean model probability, uncalibrated),
+  verifies the artifact's sha256, caches it in-process, and falls back to heuristic-v1 with a
+  recorded `fallback_reason` if there's no model or it fails. `ml` no longer imports the worker
+  (worker -> ml dependency). Worker image now includes CPU PyTorch (~4.3 GB image; slim later).
+- Production model `2026-11-25.1`: 3-seed ensemble trained on the sample match (registered in
+  the local stack only; the cloud registry starts empty at deployment).
+- Promotion gate today is manual (beats heuristic in held-out CV). Automated retrain + gate
+  (only promote if better on unseen matches) comes once there is more than one labelled match.
 
 ## Decisions to remember
 

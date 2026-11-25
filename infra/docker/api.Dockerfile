@@ -17,6 +17,7 @@ COPY pyproject.toml uv.lock .python-version ./
 COPY packages/vball_core/pyproject.toml packages/vball_core/pyproject.toml
 COPY services/api/pyproject.toml services/api/pyproject.toml
 COPY services/worker/pyproject.toml services/worker/pyproject.toml
+COPY ml/pyproject.toml ml/pyproject.toml
 RUN uv sync --frozen --no-dev --no-install-workspace --package vball-api
 
 COPY packages/vball_core packages/vball_core
