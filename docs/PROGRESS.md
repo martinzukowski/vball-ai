@@ -161,6 +161,20 @@ Also done (part 2):
 - Next: learned rally model (frozen pretrained frame embeddings + audio -> temporal model),
   trained/evaluated with held-out time blocks of this match until more matches exist.
 
+### Learned rally model, first result (2026-11-25)
+- `ml/` package (CPU PyTorch, Transformers): `features.py` (frozen DINOv2-small CLS embedding of
+  the play-area crop at 5 fps + 32 log audio bands), `rally_model.py` (dilated temporal CNN,
+  ~6 s context each side, per-step P(rally); generic decoding: smooth, 0.5 threshold, join gaps
+  <1 s, drop <2 s), `evaluate.py` (Hungarian tIoU F1, boundary errors), `crossval.py`.
+- Sample match, 4-fold blocked CV with 10 s guard bands, 3 seeds, vs the aligned Balltime
+  reference: **learned F1@0.5 0.99, F1@0.7 0.97, median start err 0.2 s, end err 0.4 s**;
+  heuristic-v1 F1@0.5 0.40 / 0.21. Per-fold learned 0.97-1.00, heuristic 0.28-0.52.
+- Caveats: one match, one gym, one camera; the reference is Balltime (~+/-1 s), not
+  hand-verified. Within-match CV can't show generalisation to other venues.
+- Cost: feature extraction 12 min CPU for 21 min of video on the dev laptop (GPU later).
+- Next: train on all labelled data, register the model (model_versions + artifact), run it in
+  the worker's analyze job with the heuristic as fallback; collect more varied matches.
+
 ## Decisions to remember
 
 - **Storage budget.** Originals from phones are large (≈4–8 GB per hour at 1080p). Plan for M4:

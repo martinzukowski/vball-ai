@@ -3,7 +3,7 @@ name = "vball-workspace"
 version = "0.0.0"
 description = "Workspace root for the VBall Python packages"
 requires-python = ">=3.12,<3.13"
-dependencies = ["vball-core", "vball-api", "vball-worker"]
+dependencies = ["vball-core", "vball-api", "vball-worker", "vball-ml"]
 
 [dependency-groups]
 dev = [
@@ -14,18 +14,20 @@ dev = [
     "ruff>=0.11",
     "pre-commit>=4.2",
     "boto3-stubs[s3]>=1.38",
+    "scipy-stubs>=1.18.1.1",
 ]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/vball_core", "services/api", "services/worker"]
+members = ["packages/vball_core", "services/api", "services/worker", "ml"]
 
 [tool.uv.sources]
 vball-core = { workspace = true }
 vball-api = { workspace = true }
 vball-worker = { workspace = true }
+vball-ml = { workspace = true }
 
 [tool.ruff]
 line-length = 100
@@ -37,20 +39,27 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "ASYNC", "PT"]
 ignore = ["S101"]  # asserts are fine in tests
 
 [tool.ruff.lint.isort]
-known-first-party = ["vball_core", "vball_api", "vball_worker", "conftest", "authkit"]
+known-first-party = ["vball_core", "vball_api", "vball_worker", "vball_ml", "conftest", "authkit"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S105", "S106", "S311", "S603", "S607", "S608"]
 "migrations/**" = ["E501"]
+"ml/eval/**" = ["S603", "S607", "E731", "SIM115"]  # one-off research scripts
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["packages/vball_core/src", "services/api/src", "services/worker/src"]
+files = ["packages/vball_core/src", "services/api/src", "services/worker/src", "ml/src"]
+
+[[tool.mypy.overrides]]
+# Third-party ML libraries ship partial/no types.
+module = ["vball_ml.*"]
+disallow_untyped_calls = false
+warn_return_any = false
 
 [tool.pytest.ini_options]
-testpaths = ["packages/vball_core/tests", "services/api/tests", "services/worker/tests"]
+testpaths = ["packages/vball_core/tests", "services/api/tests", "services/worker/tests", "ml/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
