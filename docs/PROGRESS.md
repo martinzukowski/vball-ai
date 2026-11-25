@@ -136,8 +136,11 @@ Also done (part 2):
 - Owner direction (2026-11-25): no hand-tuning; learned ML/CV that improves itself through
   gated retraining (promote only if better on unseen matches). See ARCHITECTURE §8.
 - Heuristic on the sample match is poor on short rallies: late ends (motion never settles
-  after points), missed serves, false rallies. Owner's Balltime export for 9:16-10:55 (7 rallies)
-  vs ours: 3 missed, 4 misaligned. Balltime output is a reference only, never training data.
+  after points), missed serves, false rallies. Owner's Balltime rally list for the same video turned
+  out to use a condensed timeline (2-3 s between rallies, ends at 10:55 of a 21:03 video), so it
+  can't be compared position-by-position (an earlier "3 missed" comparison was wrong). Totals:
+  Balltime 47 rallies / 9.0 min / median 10 s; ours 48 / 8.7 min / median 10 s. Owner-observed
+  boundary errors still stand. Balltime output is a reference only, never training data.
 - `vball_core/rallies.py`: effective rallies = predictions + append-only edits (add / modify /
   delete); user-added rallies survive re-analysis. API: `POST /videos/{id}/rallies/edits`
   (no overlaps, 404 for others' videos), `POST /videos/{id}/review` freezes the corrected list
