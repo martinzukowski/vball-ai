@@ -3,7 +3,10 @@ name = "vball-worker"
 version = "0.1.0"
 description = "VBall background worker: ingest (probe, proxy transcode) and analysis jobs"
 requires-python = ">=3.12,<3.13"
-dependencies = ["vball-core"]
+dependencies = [
+    "numpy>=2.5.5",
+    "vball-core",
+]
 
 [project.scripts]
 vball-worker = "vball_worker.__main__:main"

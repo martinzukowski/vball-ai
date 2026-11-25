@@ -23,7 +23,7 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M2 Sign-in (Supabase) | Done locally | Phone test waits for deployment (M8) |
 | M3 Direct uploads to object storage | Done locally | Needs Cloudflare R2 account for production |
 | M4 Job system + ingest worker | Done locally | Web progress UI not yet seen while signed in |
-| M5 Heuristic rally detection in worker | Next | |
+| M5 Heuristic rally detection in worker | In progress | Detector + features done; job/API/UI next |
 | M6 Review/correction web UI | | |
 | M7 Server-side highlights | | |
 | M8 Deployment (Vercel, Modal, Supabase, R2) | | |
@@ -104,6 +104,26 @@ what comes next. Read this first when picking the project up. Design rationale l
   queued for the owner: ready in 2.3 s, proxy 2.5 MB, original deleted.
 - Not yet measured: a real match. Synthetic test patterns compress unrealistically well, so
   don't use the 2.5 MB/20 s figure for storage planning.
+
+### M5 — Rally detection (in progress, 2026-11-25)
+Done:
+- `services/worker/src/vball_worker/rally/heuristic.py`: Python port of the original
+  `detect.js` ("heuristic-v1", hand-written rules, not ML). Parity test runs the original JS
+  (`reference/rally-cutter-js/`) under Node on 60 synthetic matches x 3 sensitivities and requires
+  identical output; 4 of 6 deliberate mutations are caught (the 2 survivors are `>=` vs `>`
+  boundary tweaks that float timestamps never hit exactly).
+- `rally/features.py`: deterministic motion (play-area polygon mask, 256x144 @ 5 fps), whistle
+  band audio, camera-move detection.
+- Sample match (owner's 21-min 1080p60 set, kept outside the repo): proxy 6.3 min on the dev
+  laptop, 178 MB (~0.5 GB/h); features 60 s; 55 whistles, 57 rallies, 9.8 of 21.1 min kept;
+  3 camera moves detected. 12-frame spot check looked right; accuracy NOT measured (no labels).
+
+**Resume here:** migration `videos.play_area` (normalised polygon) → analyze job (auto after
+ingest; download proxy, features artifact `artifacts/.../features.json.gz`, detect, write
+analysis_run + rallies + camera_segments) → API `PUT /videos/{id}/play-area`,
+`GET /videos/{id}/rallies` → review screen in the requested layout: video left, right panel with
+tabs (Rallies / Longest / Starred), rows "6:11 - 6:18 | Rally #1" with edit + star. Actions,
+scoreboard and stats tabs only once real models exist.
 
 ## Decisions to remember
 
