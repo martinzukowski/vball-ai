@@ -8,6 +8,9 @@ import { apiErrorMessage, authedApi } from "@/lib/api/authed";
 import type { components } from "@/lib/api/schema";
 import { formatDuration } from "@/lib/format";
 
+import { EditTools } from "./edit-tools";
+import { PlayAreaEditor } from "./play-area-editor";
+
 type Video = components["schemas"]["VideoOut"];
 type Rallies = components["schemas"]["RalliesOut"];
 type Rally = components["schemas"]["RallyOut"];
@@ -66,6 +69,10 @@ export function VideoPlayer() {
   const [ralliesOnly, setRalliesOnly] = useState(true);
   const [now, setNow] = useState(0);
   const { stars, toggle } = useStars(id);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [areaMode, setAreaMode] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     let stale = false;
@@ -121,10 +128,63 @@ export function VideoPlayer() {
   }, [ralliesOnly, rallies]);
 
   function play(r: Rally) {
+    setSelectedId(r.id);
     const v = videoRef.current;
     if (!v) return;
     v.currentTime = r.start_t;
     void v.play();
+  }
+
+  async function edit(body: {
+    op: "add" | "modify" | "delete";
+    rally_id?: string;
+    start_t?: number;
+    end_t?: number;
+  }) {
+    setEditBusy(true);
+    setEditError(null);
+    const res = await authedApi().POST("/videos/{video_id}/rallies/edits", {
+      params: { path: { video_id: id } },
+      body,
+    });
+    setEditBusy(false);
+    if (res.data) setData(res.data);
+    else setEditError(apiErrorMessage(res.error, res.response.status));
+    return res.data;
+  }
+
+  async function addAtNow() {
+    const t = videoRef.current?.currentTime ?? now;
+    const start = Math.max(0, t - 1);
+    const end = Math.min(video?.duration_s ?? t + 8, t + 7);
+    const d = await edit({ op: "add", start_t: start, end_t: end });
+    const added = d?.rallies.find((r) => Math.abs(r.start_t - start) < 0.05);
+    if (added) setSelectedId(added.id);
+  }
+
+  async function markReviewed() {
+    setEditBusy(true);
+    setEditError(null);
+    const res = await authedApi().POST("/videos/{video_id}/review", {
+      params: { path: { video_id: id } },
+    });
+    setEditBusy(false);
+    if (res.data) setData(res.data);
+    else setEditError(apiErrorMessage(res.error, res.response.status));
+  }
+
+  async function savePlayArea(points: number[][]) {
+    setEditBusy(true);
+    const res = await authedApi().PUT("/videos/{video_id}/play-area", {
+      params: { path: { video_id: id } },
+      body: { points },
+    });
+    setEditBusy(false);
+    if (res.data) {
+      setData(res.data);
+      setAreaMode(false);
+      setReloadKey((k) => k + 1);
+    } else setEditError(apiErrorMessage(res.error, res.response.status));
   }
 
   async function reanalyze(sensitivity: number) {
@@ -151,6 +211,7 @@ export function VideoPlayer() {
       : tab === "starred"
         ? rallies.filter((r) => stars.has(r.id))
         : rallies;
+  const selected = rallies.find((r) => r.id === selectedId) ?? current;
   const kept = rallies.reduce((s, r) => s + r.end_t - r.start_t, 0);
   const sens = data?.analysis?.sensitivity ?? 0;
   const busy = data?.job?.state === "queued" || data?.job?.state === "running";
@@ -180,6 +241,7 @@ export function VideoPlayer() {
 
       <div className="flex flex-col gap-4 lg:flex-row">
         <div className="lg:min-w-0 lg:flex-[2]">
+          <div className="relative">
           {src ? (
             <video
               ref={videoRef}
@@ -189,13 +251,46 @@ export function VideoPlayer() {
               preload="metadata"
               poster={video.poster_url ?? undefined}
               onTimeUpdate={onTime}
-              className="aspect-video w-full rounded-lg bg-black"
+              className="aspect-video w-full rounded-lg bg-black object-contain"
             />
           ) : (
             <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-zinc-900 text-zinc-400">
               {video.status === "ready" ? "Loading video…" : "Still preparing this video…"}
             </div>
           )}
+          {areaMode && (
+            <PlayAreaEditor
+              initial={data?.play_area}
+              aspect={video.width && video.height ? video.width / video.height : 16 / 9}
+              onSave={savePlayArea}
+              onCancel={() => setAreaMode(false)}
+            />
+          )}
+          </div>
+          <div className="mt-3">
+            <EditTools
+              selected={selected}
+              now={now}
+              busy={editBusy || busy}
+              reviewedAt={data?.reviewed_at}
+              onTrim={(r, start, end) => edit({ op: "modify", rally_id: r.id, start_t: start, end_t: end })}
+              onAdd={addAtNow}
+              onDelete={(r) => {
+                if (confirm(`Delete rally #${r.number}?`)) void edit({ op: "delete", rally_id: r.id });
+              }}
+              onReview={markReviewed}
+              onEditArea={() => {
+                videoRef.current?.pause();
+                setRalliesOnly(false);
+                setAreaMode(true);
+              }}
+            />
+            {editError && (
+              <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">
+                {editError}
+              </p>
+            )}
+          </div>
           {data?.analysis && (
             <p className="mt-2 text-xs text-zinc-500">
               {describeDetector(data.analysis.detector)}
@@ -267,7 +362,7 @@ export function VideoPlayer() {
               </li>
             )}
             {shown.map((r) => {
-              const active = current?.id === r.id;
+              const active = selected?.id === r.id;
               return (
                 <li
                   key={r.id}
