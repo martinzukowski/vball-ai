@@ -299,3 +299,19 @@ async def test_delete_cancels_processing(api: httpx.AsyncClient, migrated_url: s
     finally:
         engine.dispose()
     assert cancel is True
+
+
+async def test_rallies_and_play_area(api: httpx.AsyncClient) -> None:
+    h = user()
+    vid = await _uploaded(api, h)
+    r = await api.get(f"/videos/{vid}/rallies", headers=h)
+    assert r.status_code == 200
+    assert r.json()["analysis"] is None
+    assert r.json()["rallies"] == []
+    bad = await api.put(f"/videos/{vid}/play-area", json={"points": [[0, 0], [1, 1]]}, headers=h)
+    assert bad.status_code == 422
+    tri = {"points": [[0.1, 0.2], [0.9, 0.2], [0.5, 0.9]]}
+    not_ready = await api.put(f"/videos/{vid}/play-area", json=tri, headers=h)
+    assert not_ready.status_code == 409  # still processing
+    other = await api.get(f"/videos/{vid}/rallies", headers=user())
+    assert other.status_code == 404

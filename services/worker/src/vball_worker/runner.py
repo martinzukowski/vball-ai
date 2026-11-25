@@ -21,6 +21,7 @@ from vball_core.db.models import ProcessingJob, Video
 from vball_core.logging import configure_logging, get_logger
 from vball_core.settings import Settings
 from vball_core.storage import ObjectStorage
+from vball_worker.analyze import run_analyze
 from vball_worker.context import JobContext, JobResult
 from vball_worker.ingest import run_ingest
 from vball_worker.media import InvalidMediaError, MediaToolError
@@ -28,7 +29,7 @@ from vball_worker.media import InvalidMediaError, MediaToolError
 log = get_logger("vball_worker")
 
 Handler = Callable[[JobContext, Settings, ObjectStorage], JobResult]
-HANDLERS: dict[JobKind, Handler] = {JobKind.INGEST: run_ingest}
+HANDLERS: dict[JobKind, Handler] = {JobKind.INGEST: run_ingest, JobKind.ANALYZE: run_analyze}
 HEARTBEAT_INTERVAL_S = 20.0
 
 

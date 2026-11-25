@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Video · VBall" };
 
 export default function VideoPage() {
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-4 px-4 py-6">
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-4 py-6">
       {/* Reads the route parameter and loads on the client with the user's token. */}
       <Suspense fallback={<p className="text-zinc-500">Loading…</p>}>
         <VideoPlayer />

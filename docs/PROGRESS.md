@@ -23,8 +23,8 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M2 Sign-in (Supabase) | Done locally | Phone test waits for deployment (M8) |
 | M3 Direct uploads to object storage | Done locally | Needs Cloudflare R2 account for production |
 | M4 Job system + ingest worker | Done locally | Web progress UI not yet seen while signed in |
-| M5 Heuristic rally detection in worker | In progress | Detector + features done; job/API/UI next |
-| M6 Review/correction web UI | | |
+| M5 Heuristic rally detection in worker | Done locally | Play-area editor UI comes in M6 |
+| M6 Review/correction web UI | Next | Trim/add/delete rallies, play-area editor, synced stars |
 | M7 Server-side highlights | | |
 | M8 Deployment (Vercel, Modal, Supabase, R2) | | |
 
@@ -118,12 +118,19 @@ Done:
   laptop, 178 MB (~0.5 GB/h); features 60 s; 55 whistles, 57 rallies, 9.8 of 21.1 min kept;
   3 camera moves detected. 12-frame spot check looked right; accuracy NOT measured (no labels).
 
-**Resume here:** migration `videos.play_area` (normalised polygon) → analyze job (auto after
-ingest; download proxy, features artifact `artifacts/.../features.json.gz`, detect, write
-analysis_run + rallies + camera_segments) → API `PUT /videos/{id}/play-area`,
-`GET /videos/{id}/rallies` → review screen in the requested layout: video left, right panel with
-tabs (Rallies / Longest / Starred), rows "6:11 - 6:18 | Rally #1" with edit + star. Actions,
-scoreboard and stats tabs only once real models exist.
+Also done (part 2):
+- Migration `0004`: `videos.play_area` (normalised polygon, 3-16 points).
+- Worker `analyze.py` (job kind `analyze`, pipeline `rally-heuristic-1`), enqueued automatically
+  when ingest succeeds. Writes features artifact, analysis_run (made active atomically),
+  camera_segments, rallies (`confidence` NULL: heuristic scores aren't probabilities).
+- API: `GET /videos/{id}/rallies`, `PUT /videos/{id}/play-area` (re-runs detection),
+  `POST /videos/{id}/analyze {sensitivity -5..5}`.
+- Review screen `/videos/[id]` in the owner's requested layout (video left, rally panel right
+  with Rallies / Longest / Starred tabs, "m:ss – m:ss | Rally #n" rows, current rally
+  highlighted, star), "Skip dead time" playback, Fewer/More sensitivity. Stars are per-browser
+  (localStorage) until M6. Actions/scoreboard/stats intentionally absent (no model yet).
+- Bug caught by tests: JSONB `None` was stored as JSON `null`, violating a CHECK; JSONB columns
+  that may be NULL now use `none_as_null=True`.
 
 ## Decisions to remember
 

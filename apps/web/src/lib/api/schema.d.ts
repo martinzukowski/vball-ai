@@ -113,6 +113,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/videos/{video_id}/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze Video
+         * @description Re-run rally detection, e.g. with a different sensitivity (-5 fewer .. 5 more).
+         */
+        post: operations["analyzeVideo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{video_id}/play-area": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Play Area
+         * @description Save the play area and re-run rally detection with it.
+         */
+        put: operations["setPlayArea"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/videos/{video_id}/playback": {
         parameters: {
             query?: never;
@@ -126,6 +166,23 @@ export interface paths {
          *     the original upload (which may not play in every browser, e.g. HEVC on some Androids).
          */
         get: operations["getPlaybackUrl"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{video_id}/rallies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rallies */
+        get: operations["getRallies"];
         put?: never;
         post?: never;
         delete?: never;
@@ -209,6 +266,39 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnalysisOut */
+        AnalysisOut: {
+            /** Camera Moves */
+            camera_moves: number[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Detector */
+            detector: string;
+            /** Mode */
+            mode: string;
+            /** Pipeline Version */
+            pipeline_version: string;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Sensitivity */
+            sensitivity: number;
+            /** Used Play Area */
+            used_play_area: boolean;
+        };
+        /** AnalyzeIn */
+        AnalyzeIn: {
+            /**
+             * Sensitivity
+             * @default 0
+             */
+            sensitivity: number;
+        };
         /** CheckResult */
         CheckResult: {
             /** Error */
@@ -321,6 +411,11 @@ export interface components {
             /** Part Numbers */
             part_numbers: number[];
         };
+        /** PlayAreaIn */
+        PlayAreaIn: {
+            /** Points */
+            points: number[][];
+        };
         /** PlaybackUrl */
         PlaybackUrl: {
             /** Expires In S */
@@ -332,6 +427,35 @@ export interface components {
             kind: "proxy" | "original";
             /** Url */
             url: string;
+        };
+        /** RalliesOut */
+        RalliesOut: {
+            analysis: components["schemas"]["AnalysisOut"] | null;
+            job: components["schemas"]["JobOut"] | null;
+            /** Play Area */
+            play_area: number[][] | null;
+            /** Rallies */
+            rallies: components["schemas"]["RallyOut"][];
+        };
+        /** RallyOut */
+        RallyOut: {
+            /** End T */
+            end_t: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: number;
+            /** Score */
+            score: number | null;
+            /** Serve T */
+            serve_t: number | null;
+            /** Start T */
+            start_t: number;
+            /** Whistle */
+            whistle: boolean;
         };
         /** Readiness */
         Readiness: {
@@ -633,6 +757,76 @@ export interface operations {
             };
         };
     };
+    analyzeVideo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyzeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RalliesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setPlayArea: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlayAreaIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RalliesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getPlaybackUrl: {
         parameters: {
             query?: never;
@@ -651,6 +845,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlaybackUrl"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRallies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RalliesOut"];
                 };
             };
             /** @description Validation Error */

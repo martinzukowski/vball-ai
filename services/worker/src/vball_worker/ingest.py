@@ -15,8 +15,8 @@ from pathlib import Path
 from sqlalchemy import Connection, update
 from sqlalchemy.orm import Session
 
-from vball_core import pipelines
-from vball_core.db.enums import VideoStatus
+from vball_core import jobs, pipelines
+from vball_core.db.enums import JobKind, VideoStatus
 from vball_core.db.models import Video
 from vball_core.logging import get_logger
 from vball_core.settings import Settings
@@ -116,6 +116,15 @@ def run_ingest(ctx: JobContext, settings: Settings, storage: ObjectStorage) -> J
                 poster_key=poster_key(video),
                 error_message=None,
             )
+        )
+        # Rally detection runs as soon as the video is playable.
+        jobs.enqueue(
+            conn,
+            video_id=video.id,
+            owner_id=video.owner_id,
+            kind=JobKind.ANALYZE,
+            pipeline_version=pipelines.RALLY_HEURISTIC,
+            params={"sensitivity": 0, "play_area": None},
         )
 
     def delete_original() -> None:

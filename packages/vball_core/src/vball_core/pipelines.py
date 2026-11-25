@@ -2,3 +2,4 @@
 Bump a version whenever its output changes; results record the version that produced them."""
 
 INGEST = "ingest-1"
+RALLY_HEURISTIC = "rally-heuristic-1"

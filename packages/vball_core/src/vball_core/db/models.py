@@ -115,6 +115,8 @@ class Video(Base):
     proxy_key: Mapped[str | None] = mapped_column(sa.String(512), unique=True)
     poster_key: Mapped[str | None] = mapped_column(sa.String(512))
     proxy_size_bytes: Mapped[int | None] = mapped_column(sa.BigInteger)
+    # Polygon around the court + space above it, normalised [[x, y], ...] in 0..1.
+    play_area: Mapped[list[list[float]] | None] = mapped_column(JSONB(none_as_null=True))
     original_deleted_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
     # Filled by the ingest job from ffprobe; NULL until then.
@@ -139,6 +141,11 @@ class Video(Base):
         sa.CheckConstraint("duration_s IS NULL OR duration_s > 0", name="duration_positive"),
         sa.CheckConstraint(
             "proxy_size_bytes IS NULL OR proxy_size_bytes > 0", name="proxy_size_positive"
+        ),
+        sa.CheckConstraint(
+            "play_area IS NULL OR (jsonb_typeof(play_area) = 'array' "
+            "AND jsonb_array_length(play_area) BETWEEN 3 AND 16)",
+            name="play_area_polygon",
         ),
         sa.CheckConstraint(
             "num_nulls(fps_num, fps_den) <> 1 AND coalesce(fps_num > 0 AND fps_den > 0, true)",
@@ -384,7 +391,8 @@ class CameraSegment(Base):
         text_enum(CalibrationSource, "calibration_source")
     )
     # {"near_left": [u, v], ...} in source-video pixels; NULL when not calibrated.
-    image_keypoints: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # none_as_null: Python None must be SQL NULL, not JSON null (the CHECK below relies on it).
+    image_keypoints: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
     homography: Mapped[list[float] | None] = mapped_column(ARRAY(sa.Double))
     reprojection_err_px: Mapped[float | None] = mapped_column(sa.Double)
     confidence: Mapped[float | None] = mapped_column(sa.Double)

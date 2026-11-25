@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from vball_api.deps import CurrentUser, DbSession, ensure_owner
 from vball_core import jobs, pipelines
 from vball_core.db.enums import JobErrorCode, JobKind, JobState, VideoStatus
-from vball_core.db.models import ProcessingJob, Profile, Upload, Video
+from vball_core.db.models import AnalysisRun, ProcessingJob, Profile, Rally, Upload, Video
 from vball_core.logging import get_logger
 from vball_core.settings import Settings
 from vball_core.storage import ObjectStorage, StorageNotConfiguredError, part_plan
@@ -535,3 +535,140 @@ async def get_playback_url(
         raise HTTPException(status.HTTP_409_CONFLICT, "video is not available for playback")
     url = await to_thread.run_sync(storage.presign_get, video.original_key, ttl, None)
     return PlaybackUrl(url=url, kind="original", expires_in_s=ttl)
+
+
+# --- rallies -------------------------------------------------------------------------------
+class RallyOut(BaseModel):
+    id: uuid.UUID
+    number: int
+    start_t: float
+    end_t: float
+    serve_t: float | None
+    whistle: bool
+    score: float | None  # heuristic motion strength 0..1, NOT a probability
+
+
+class AnalysisOut(BaseModel):
+    run_id: uuid.UUID
+    detector: str
+    pipeline_version: str
+    created_at: datetime
+    sensitivity: int
+    used_play_area: bool
+    mode: str
+    camera_moves: list[float]
+
+
+class RalliesOut(BaseModel):
+    analysis: AnalysisOut | None
+    rallies: list[RallyOut]
+    play_area: list[list[float]] | None
+    job: JobOut | None  # latest analysis job (queued/running/failed shows here)
+
+
+class PlayAreaIn(BaseModel):
+    points: list[list[float]] = Field(min_length=3, max_length=16)
+
+    @field_validator("points")
+    @classmethod
+    def _in_frame(cls, v: list[list[float]]) -> list[list[float]]:
+        for p in v:
+            if len(p) != 2 or not all(-0.25 <= c <= 1.25 for c in p):
+                raise ValueError("points must be [x, y] pairs in normalised coordinates")
+        return [[round(p[0], 4), round(p[1], 4)] for p in v]
+
+
+class AnalyzeIn(BaseModel):
+    sensitivity: int = Field(default=0, ge=-5, le=5)
+
+
+async def enqueue_analysis(db: DbSession, video: Video, sensitivity: int) -> None:
+    if video.status != VideoStatus.READY:
+        raise HTTPException(status.HTTP_409_CONFLICT, "the video isn't ready yet")
+    params = {"sensitivity": sensitivity, "play_area": video.play_area}
+
+    def run(session: Session) -> None:
+        jobs.enqueue(
+            session.connection(),
+            video_id=video.id,
+            owner_id=video.owner_id,
+            kind=JobKind.ANALYZE,
+            pipeline_version=pipelines.RALLY_HEURISTIC,
+            params=params,
+        )
+
+    await db.run_sync(run)
+
+
+@router.get("/{video_id}/rallies", response_model=RalliesOut, operation_id="getRallies")
+async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> RalliesOut:
+    video = await load_owned(db, user, video_id)
+    run = await db.scalar(
+        select(AnalysisRun).where(AnalysisRun.video_id == video.id, AnalysisRun.is_active)
+    )
+    job = await db.scalar(
+        select(ProcessingJob)
+        .where(ProcessingJob.video_id == video.id, ProcessingJob.kind == JobKind.ANALYZE)
+        .order_by(ProcessingJob.created_at.desc())
+        .limit(1)
+    )
+    rallies: list[RallyOut] = []
+    analysis = None
+    if run is not None:
+        rows = (
+            await db.scalars(
+                select(Rally).where(Rally.analysis_run_id == run.id).order_by(Rally.start_t)
+            )
+        ).all()
+        rallies = [
+            RallyOut(
+                id=r.id,
+                number=i + 1,
+                start_t=r.start_t,
+                end_t=r.end_t,
+                serve_t=r.serve_t,
+                whistle=bool(r.features.get("whistle")),
+                score=r.features.get("score"),
+            )
+            for i, r in enumerate(rows)
+        ]
+        p = run.params
+        analysis = AnalysisOut(
+            run_id=run.id,
+            detector=str(p.get("detector", "")),
+            pipeline_version=run.pipeline_version,
+            created_at=run.created_at,
+            sensitivity=int(p.get("sensitivity", 0)),
+            used_play_area=bool(p.get("play_area")),
+            mode=str(p.get("mode", "")),
+            camera_moves=[float(x) for x in p.get("camera_moves", [])],
+        )
+    return RalliesOut(
+        analysis=analysis,
+        rallies=rallies,
+        play_area=video.play_area,
+        job=JobOut.of(job) if job else None,
+    )
+
+
+@router.put("/{video_id}/play-area", response_model=RalliesOut, operation_id="setPlayArea")
+async def set_play_area(
+    video_id: uuid.UUID, body: PlayAreaIn, user: CurrentUser, db: DbSession
+) -> RalliesOut:
+    """Save the play area and re-run rally detection with it."""
+    video = await load_owned(db, user, video_id)
+    video.play_area = body.points
+    await enqueue_analysis(db, video, 0)
+    await db.commit()
+    return await get_rallies(video_id, user, db)
+
+
+@router.post("/{video_id}/analyze", response_model=RalliesOut, operation_id="analyzeVideo")
+async def analyze_video(
+    video_id: uuid.UUID, body: AnalyzeIn, user: CurrentUser, db: DbSession
+) -> RalliesOut:
+    """Re-run rally detection, e.g. with a different sensitivity (-5 fewer .. 5 more)."""
+    video = await load_owned(db, user, video_id)
+    await enqueue_analysis(db, video, body.sensitivity)
+    await db.commit()
+    return await get_rallies(video_id, user, db)

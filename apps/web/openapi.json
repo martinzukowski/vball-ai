@@ -1,6 +1,72 @@
 {
   "components": {
     "schemas": {
+      "AnalysisOut": {
+        "properties": {
+          "camera_moves": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Camera Moves",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "detector": {
+            "title": "Detector",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "pipeline_version": {
+            "title": "Pipeline Version",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "sensitivity": {
+            "title": "Sensitivity",
+            "type": "integer"
+          },
+          "used_play_area": {
+            "title": "Used Play Area",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id",
+          "detector",
+          "pipeline_version",
+          "created_at",
+          "sensitivity",
+          "used_play_area",
+          "mode",
+          "camera_moves"
+        ],
+        "title": "AnalysisOut",
+        "type": "object"
+      },
+      "AnalyzeIn": {
+        "properties": {
+          "sensitivity": {
+            "default": 0,
+            "maximum": 5.0,
+            "minimum": -5.0,
+            "title": "Sensitivity",
+            "type": "integer"
+          }
+        },
+        "title": "AnalyzeIn",
+        "type": "object"
+      },
       "CheckResult": {
         "properties": {
           "error": {
@@ -311,6 +377,27 @@
         "title": "PartUrlsRequest",
         "type": "object"
       },
+      "PlayAreaIn": {
+        "properties": {
+          "points": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "maxItems": 16,
+            "minItems": 3,
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "points"
+        ],
+        "title": "PlayAreaIn",
+        "type": "object"
+      },
       "PlaybackUrl": {
         "properties": {
           "expires_in_s": {
@@ -336,6 +423,120 @@
           "expires_in_s"
         ],
         "title": "PlaybackUrl",
+        "type": "object"
+      },
+      "RalliesOut": {
+        "properties": {
+          "analysis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "play_area": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Play Area"
+          },
+          "rallies": {
+            "items": {
+              "$ref": "#/components/schemas/RallyOut"
+            },
+            "title": "Rallies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "analysis",
+          "rallies",
+          "play_area",
+          "job"
+        ],
+        "title": "RalliesOut",
+        "type": "object"
+      },
+      "RallyOut": {
+        "properties": {
+          "end_t": {
+            "title": "End T",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "serve_t": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serve T"
+          },
+          "start_t": {
+            "title": "Start T",
+            "type": "number"
+          },
+          "whistle": {
+            "title": "Whistle",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "start_t",
+          "end_t",
+          "serve_t",
+          "whistle",
+          "score"
+        ],
+        "title": "RallyOut",
         "type": "object"
       },
       "Readiness": {
@@ -897,6 +1098,124 @@
         ]
       }
     },
+    "/videos/{video_id}/analyze": {
+      "post": {
+        "description": "Re-run rally detection, e.g. with a different sensitivity (-5 fewer .. 5 more).",
+        "operationId": "analyzeVideo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RalliesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Analyze Video",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}/play-area": {
+      "put": {
+        "description": "Save the play area and re-run rally detection with it.",
+        "operationId": "setPlayArea",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayAreaIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RalliesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Play Area",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
     "/videos/{video_id}/playback": {
       "get": {
         "description": "Short-lived URL to stream the video: the browser-friendly proxy once it exists, else\nthe original upload (which may not play in every browser, e.g. HEVC on some Androids).",
@@ -941,6 +1260,54 @@
           }
         ],
         "summary": "Get Playback Url",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}/rallies": {
+      "get": {
+        "operationId": "getRallies",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RalliesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Rallies",
         "tags": [
           "videos"
         ]

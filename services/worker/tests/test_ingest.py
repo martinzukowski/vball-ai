@@ -88,7 +88,10 @@ def video_row(engine: Engine, video_id: uuid.UUID) -> dict[str, Any]:
 def job_row(engine: Engine, video_id: uuid.UUID) -> dict[str, Any]:
     with engine.connect() as c:
         return dict(
-            c.execute(text("SELECT * FROM processing_jobs WHERE video_id = :id"), {"id": video_id})
+            c.execute(
+                text("SELECT * FROM processing_jobs WHERE video_id = :id AND kind = 'ingest'"),
+                {"id": video_id},
+            )
             .mappings()
             .one()
         )
@@ -226,3 +229,28 @@ def test_lost_lease_during_processing_writes_nothing(
     assert row["status"] == "ingesting"  # not marked ready
     assert row["proxy_key"] is None
     assert job_row(engine, v["id"])["state"] == "running"  # left for sweep to finalise
+
+
+def test_analysis_runs_after_ingest(
+    worker: Worker, engine: Engine, storage: ObjectStorage, tmp_path: Path
+) -> None:
+    v = uploaded_video(engine, storage, make_clip(tmp_path / "m.mov", seconds=6))
+    assert worker.run_until_idle() == 2  # ingest, then analyze
+    with engine.connect() as c:
+        run = (
+            c.execute(
+                text("SELECT * FROM analysis_runs WHERE video_id = :id AND is_active"),
+                {"id": v["id"]},
+            )
+            .mappings()
+            .one()
+        )
+        segs = c.execute(
+            text("SELECT count(*) FROM camera_segments WHERE analysis_run_id = :r"),
+            {"r": run["id"]},
+        ).scalar_one()
+    assert run["status"] == "succeeded"
+    assert run["pipeline_version"] == "rally-heuristic-1"
+    assert run["params"]["detector"] == "heuristic-v1"
+    assert segs >= 1
+    assert storage.object_size(run["params"]["features_key"])

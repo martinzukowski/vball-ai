@@ -2,19 +2,60 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiErrorMessage, authedApi } from "@/lib/api/authed";
 import type { components } from "@/lib/api/schema";
 import { formatDuration } from "@/lib/format";
 
 type Video = components["schemas"]["VideoOut"];
-type Loaded = { video: Video; src: string | null; srcError: string | null };
+type Rallies = components["schemas"]["RalliesOut"];
+type Rally = components["schemas"]["RallyOut"];
+type Tab = "all" | "longest" | "starred";
 
-// Playback page. The rally timeline and editing land here in M5/M6.
+const POLL_MS = 4000;
+
+function clock(s: number): string {
+  return formatDuration(s);
+}
+
+// Starred rallies are remembered in this browser only for now (synced stars come with edits).
+function useStars(videoId: string) {
+  const key = `vball:stars:${videoId}`;
+  // Read once on mount. Safe for hydration: stars only render after rallies load in the browser.
+  const [stars, setStars] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      return new Set(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggle = (id: string) =>
+    setStars((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem(key, JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  return { stars, toggle };
+}
+
 export function VideoPlayer() {
   const { id } = useParams<{ id: string }>();
-  const [state, setState] = useState<Loaded | { error: string } | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [video, setVideo] = useState<Video | null>(null);
+  const [src, setSrc] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<Rallies | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [tab, setTab] = useState<Tab>("all");
+  const [ralliesOnly, setRalliesOnly] = useState(true);
+  const [now, setNow] = useState(0);
+  const { stars, toggle } = useStars(id);
 
   useEffect(() => {
     let stale = false;
@@ -23,59 +64,237 @@ export function VideoPlayer() {
       const params = { params: { path: { video_id: id } } };
       const v = await api.GET("/videos/{video_id}", params);
       if (stale) return;
-      if (!v.data) {
-        setState({ error: apiErrorMessage(v.error, v.response.status) });
-        return;
-      }
+      if (!v.data) return setError(apiErrorMessage(v.error, v.response.status));
+      setVideo(v.data);
       const p = await api.GET("/videos/{video_id}/playback", params);
-      if (stale) return;
-      setState({
-        video: v.data,
-        src: p.data?.url ?? null,
-        srcError: p.data ? null : apiErrorMessage(p.error, p.response.status),
-      });
+      if (!stale) setSrc(p.data?.url ?? null);
     })();
     return () => {
       stale = true;
     };
   }, [id]);
 
-  if (state === null) return <p className="text-zinc-500">Loading…</p>;
-  if ("error" in state) {
+  useEffect(() => {
+    let stale = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    authedApi()
+      .GET("/videos/{video_id}/rallies", { params: { path: { video_id: id } } })
+      .then(({ data: d }) => {
+        if (stale || !d) return;
+        setData(d);
+        const st = d.job?.state;
+        if (st === "queued" || st === "running" || (!d.analysis && !d.job)) {
+          timer = setTimeout(() => setReloadKey((k) => k + 1), POLL_MS);
+        }
+      });
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [id, reloadKey]);
+
+  const rallies = useMemo(() => data?.rallies ?? [], [data]);
+  const current = rallies.find((r) => now >= r.start_t && now < r.end_t) ?? null;
+
+  // "Rallies only" playback: jump over dead time.
+  const onTime = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const t = v.currentTime;
+    setNow(t);
+    if (!ralliesOnly || v.paused || rallies.length === 0) return;
+    if (!rallies.some((r) => t >= r.start_t && t < r.end_t)) {
+      const next = rallies.find((r) => r.start_t > t);
+      if (next) v.currentTime = next.start_t;
+      else v.pause();
+    }
+  }, [ralliesOnly, rallies]);
+
+  function play(r: Rally) {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = r.start_t;
+    void v.play();
+  }
+
+  async function reanalyze(sensitivity: number) {
+    const { data: d } = await authedApi().POST("/videos/{video_id}/analyze", {
+      params: { path: { video_id: id } },
+      body: { sensitivity },
+    });
+    if (d) setData(d);
+    setReloadKey((k) => k + 1);
+  }
+
+  if (error) {
     return (
       <p role="alert" className="text-red-700 dark:text-red-400">
-        {state.error}. <Link href="/videos" className="underline">Back to videos</Link>
+        {error}. <Link href="/videos" className="underline">Back to videos</Link>
       </p>
     );
   }
-  const { video, src, srcError } = state;
+  if (!video) return <p className="text-zinc-500">Loading…</p>;
+
+  const shown =
+    tab === "longest"
+      ? [...rallies].sort((a, b) => b.end_t - b.start_t - (a.end_t - a.start_t))
+      : tab === "starred"
+        ? rallies.filter((r) => stars.has(r.id))
+        : rallies;
+  const kept = rallies.reduce((s, r) => s + r.end_t - r.start_t, 0);
+  const sens = data?.analysis?.sensitivity ?? 0;
+  const busy = data?.job?.state === "queued" || data?.job?.state === "running";
+
   return (
-    <>
-      <div className="flex items-baseline justify-between gap-3">
-        <h1 className="truncate text-xl font-semibold tracking-tight">{video.filename}</h1>
-        <Link href="/videos" className="shrink-0 text-sm text-zinc-500 hover:underline">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{video.filename}</h1>
+        {rallies.length > 0 && (
+          <span className="text-sm text-zinc-500 tabular-nums">
+            {rallies.length} rallies · {clock(kept)} of{" "}
+            {video.duration_s ? clock(video.duration_s) : "?"}
+          </span>
+        )}
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={ralliesOnly}
+            onChange={(e) => setRalliesOnly(e.target.checked)}
+          />
+          Skip dead time
+        </label>
+        <Link href="/videos" className="text-sm text-zinc-500 hover:underline">
           All videos
         </Link>
       </div>
-      {src ? (
-        <video
-          src={src}
-          controls
-          playsInline
-          preload="metadata"
-          poster={video.poster_url ?? undefined}
-          className="aspect-video w-full rounded-lg bg-black"
-        />
-      ) : (
-        <p role="alert" className="text-red-700 dark:text-red-400">
-          {srcError ?? "This video can't be played yet."}
-        </p>
-      )}
-      <p className="text-sm text-zinc-500">
-        {video.duration_s != null && formatDuration(video.duration_s)}
-        {video.width && video.height && ` · ${video.width}×${video.height} original`}
-        {video.status !== "ready" && ` · ${video.status}`}
-      </p>
-    </>
+
+      <div className="flex flex-col gap-4 lg:flex-row">
+        <div className="lg:min-w-0 lg:flex-[2]">
+          {src ? (
+            <video
+              ref={videoRef}
+              src={src}
+              controls
+              playsInline
+              preload="metadata"
+              poster={video.poster_url ?? undefined}
+              onTimeUpdate={onTime}
+              className="aspect-video w-full rounded-lg bg-black"
+            />
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-zinc-900 text-zinc-400">
+              {video.status === "ready" ? "Loading video…" : "Still preparing this video…"}
+            </div>
+          )}
+          {data?.analysis && (
+            <p className="mt-2 text-xs text-zinc-500">
+              Detected by {data.analysis.detector} (rules-based; motion and whistle cues).
+              {!data.analysis.used_play_area &&
+                " No play area marked: motion is measured on the whole frame, so people walking past the camera can cause mistakes."}
+              {data.analysis.camera_moves.length > 0 &&
+                ` Camera moved ${data.analysis.camera_moves.length}× (at ${data.analysis.camera_moves.map(clock).join(", ")}).`}
+            </p>
+          )}
+        </div>
+
+        <aside className="flex max-h-[75vh] flex-col overflow-hidden rounded-lg border border-zinc-200 lg:flex-1 dark:border-zinc-800">
+          <div className="flex border-b border-zinc-200 text-sm dark:border-zinc-800">
+            {(
+              [
+                ["all", "Rallies"],
+                ["longest", "Longest"],
+                ["starred", `Starred${stars.size ? ` (${stars.size})` : ""}`],
+              ] as [Tab, string][]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                className={`flex-1 px-3 py-2.5 font-medium ${
+                  tab === key
+                    ? "border-b-2 border-blue-600 text-zinc-950 dark:text-white"
+                    : "text-zinc-500"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800">
+            <span>{busy ? "Detecting rallies…" : "Sensitivity"}</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={busy || sens <= -5}
+                onClick={() => reanalyze(sens - 2)}
+                className="rounded-md border border-zinc-300 px-2 py-1 disabled:opacity-40 dark:border-zinc-700"
+              >
+                Fewer
+              </button>
+              <span className="w-6 text-center tabular-nums">{sens}</span>
+              <button
+                type="button"
+                disabled={busy || sens >= 5}
+                onClick={() => reanalyze(sens + 2)}
+                className="rounded-md border border-zinc-300 px-2 py-1 disabled:opacity-40 dark:border-zinc-700"
+              >
+                More
+              </button>
+            </div>
+          </div>
+          <ul className="flex-1 overflow-y-auto">
+            {!data && <li className="p-4 text-sm text-zinc-500">Loading rallies…</li>}
+            {data && !data.analysis && (
+              <li className="p-4 text-sm text-zinc-500">
+                {data.job?.state === "failed"
+                  ? `Rally detection failed: ${data.job.error_message ?? "unknown error"}`
+                  : `Finding rallies… ${data.job ? Math.round(data.job.progress * 100) : 0}%`}
+              </li>
+            )}
+            {data?.analysis && shown.length === 0 && (
+              <li className="p-4 text-sm text-zinc-500">
+                {tab === "starred" ? "No starred rallies yet." : "No rallies detected."}
+              </li>
+            )}
+            {shown.map((r) => {
+              const active = current?.id === r.id;
+              return (
+                <li
+                  key={r.id}
+                  className={`flex items-center gap-2 border-b border-zinc-100 px-3 dark:border-zinc-900 ${
+                    active ? "bg-blue-600 text-white" : ""
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => play(r)}
+                    className="flex min-h-12 flex-1 items-center gap-3 text-left text-sm"
+                  >
+                    <span className="tabular-nums">
+                      {clock(r.start_t)} – {clock(r.end_t)}
+                    </span>
+                    <span className={active ? "text-white/60" : "text-zinc-300 dark:text-zinc-700"}>
+                      |
+                    </span>
+                    <span className="font-medium">Rally #{r.number}</span>
+                    <span className={`ml-auto text-xs tabular-nums ${active ? "text-white/80" : "text-zinc-500"}`}>
+                      {Math.round(r.end_t - r.start_t)}s
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggle(r.id)}
+                    aria-label={stars.has(r.id) ? `Unstar rally ${r.number}` : `Star rally ${r.number}`}
+                    className="p-2 text-lg leading-none"
+                  >
+                    {stars.has(r.id) ? "★" : "☆"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </aside>
+      </div>
+    </div>
   );
 }
