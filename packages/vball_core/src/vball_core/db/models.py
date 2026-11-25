@@ -496,6 +496,31 @@ class RallyEdit(Base):
     )
 
 
+class RallyLabelSet(Base):
+    """Ground truth: the user's reviewed rally list for a video, frozen when they mark it
+    reviewed. Training/evaluation datasets are built from the latest set per video."""
+
+    __tablename__ = "rally_label_sets"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    video_id: Mapped[uuid.UUID] = fk("videos.id")
+    user_id: Mapped[uuid.UUID] = fk("profiles.id")
+    base_run_id: Mapped[uuid.UUID | None] = fk(
+        "analysis_runs.id", nullable=True, ondelete="SET NULL"
+    )
+    duration_s: Mapped[float] = mapped_column(sa.Double, nullable=False)
+    # [{start_t, end_t, source, edited, predicted_start_t, predicted_end_t}, ...]
+    rallies: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    n_rallies: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    created_at: Mapped[datetime] = created_at()
+
+    __table_args__ = (
+        sa.CheckConstraint("jsonb_typeof(rallies) = 'array'", name="rallies_array"),
+        sa.CheckConstraint("n_rallies = jsonb_array_length(rallies)", name="count_matches"),
+        sa.CheckConstraint("duration_s > 0", name="duration_positive"),
+    )
+
+
 class HighlightExport(Base):
     __tablename__ = "highlight_exports"
 

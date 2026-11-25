@@ -24,7 +24,7 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M3 Direct uploads to object storage | Done locally | Needs Cloudflare R2 account for production |
 | M4 Job system + ingest worker | Done locally | Web progress UI not yet seen while signed in |
 | M5 Heuristic rally detection in worker | Done locally | Play-area editor UI comes in M6 |
-| M6 Review/correction web UI | Next | Trim/add/delete rallies, play-area editor, synced stars |
+| M6 Review/correction web UI | In progress | Edits + review API done; editing UI next |
 | M7 Server-side highlights | | |
 | M8 Deployment (Vercel, Modal, Supabase, R2) | | |
 
@@ -131,6 +131,20 @@ Also done (part 2):
   (localStorage) until M6. Actions/scoreboard/stats intentionally absent (no model yet).
 - Bug caught by tests: JSONB `None` was stored as JSON `null`, violating a CHECK; JSONB columns
   that may be NULL now use `none_as_null=True`.
+
+### M6 — Corrections → training labels (in progress, 2026-11-25)
+- Owner direction (2026-11-25): no hand-tuning; learned ML/CV that improves itself through
+  gated retraining (promote only if better on unseen matches). See ARCHITECTURE §8.
+- Heuristic on the sample match is poor on short rallies: late ends (motion never settles
+  after points), missed serves, false rallies. Owner's Balltime export for 9:16-10:55 (7 rallies)
+  vs ours: 3 missed, 4 misaligned. Balltime output is a reference only, never training data.
+- `vball_core/rallies.py`: effective rallies = predictions + append-only edits (add / modify /
+  delete); user-added rallies survive re-analysis. API: `POST /videos/{id}/rallies/edits`
+  (no overlaps, 404 for others' videos), `POST /videos/{id}/review` freezes the corrected list
+  into `rally_label_sets` (migration 0005) with the model's original bounds kept.
+- Next: editing UI (drag edges, set start/end to playhead, add, delete, mark reviewed,
+  play-area editor) → owner labels this match → dataset builder + eval harness → learned
+  rally model (frozen video embeddings + temporal model) → gated auto-retraining.
 
 ## Decisions to remember
 

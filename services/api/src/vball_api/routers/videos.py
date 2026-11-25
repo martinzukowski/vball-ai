@@ -11,7 +11,7 @@ import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import PurePath
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from anyio import to_thread
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -23,8 +23,18 @@ from sqlalchemy.orm import Session
 from vball_api.deps import CurrentUser, DbSession, ensure_owner
 from vball_core import jobs, pipelines
 from vball_core.db.enums import JobErrorCode, JobKind, JobState, VideoStatus
-from vball_core.db.models import AnalysisRun, ProcessingJob, Profile, Rally, Upload, Video
+from vball_core.db.models import (
+    AnalysisRun,
+    ProcessingJob,
+    Profile,
+    Rally,
+    RallyEdit,
+    RallyLabelSet,
+    Upload,
+    Video,
+)
 from vball_core.logging import get_logger
+from vball_core.rallies import apply_edits, overlaps
 from vball_core.settings import Settings
 from vball_core.storage import ObjectStorage, StorageNotConfiguredError, part_plan
 
@@ -539,13 +549,13 @@ async def get_playback_url(
 
 # --- rallies -------------------------------------------------------------------------------
 class RallyOut(BaseModel):
-    id: uuid.UUID
+    id: uuid.UUID  # stable key for edits (a predicted rally's id, or the id of the add-edit)
     number: int
     start_t: float
     end_t: float
     serve_t: float | None
-    whistle: bool
-    score: float | None  # heuristic motion strength 0..1, NOT a probability
+    source: Literal["model", "user"]
+    edited: bool
 
 
 class AnalysisOut(BaseModel):
@@ -564,6 +574,7 @@ class RalliesOut(BaseModel):
     rallies: list[RallyOut]
     play_area: list[list[float]] | None
     job: JobOut | None  # latest analysis job (queued/running/failed shows here)
+    reviewed_at: datetime | None  # when the user last marked this video's rallies correct
 
 
 class PlayAreaIn(BaseModel):
@@ -615,22 +626,25 @@ async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> 
     rallies: list[RallyOut] = []
     analysis = None
     if run is not None:
-        rows = (
+        base = (await db.scalars(select(Rally).where(Rally.analysis_run_id == run.id))).all()
+        edits = (
             await db.scalars(
-                select(Rally).where(Rally.analysis_run_id == run.id).order_by(Rally.start_t)
+                select(RallyEdit)
+                .where(RallyEdit.video_id == video.id)
+                .order_by(RallyEdit.created_at)
             )
         ).all()
         rallies = [
             RallyOut(
-                id=r.id,
+                id=r.key,
                 number=i + 1,
                 start_t=r.start_t,
                 end_t=r.end_t,
                 serve_t=r.serve_t,
-                whistle=bool(r.features.get("whistle")),
-                score=r.features.get("score"),
+                source=r.source,
+                edited=r.edited,
             )
-            for i, r in enumerate(rows)
+            for i, r in enumerate(apply_edits(base, edits))
         ]
         p = run.params
         analysis = AnalysisOut(
@@ -643,11 +657,15 @@ async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> 
             mode=str(p.get("mode", "")),
             camera_moves=[float(x) for x in p.get("camera_moves", [])],
         )
+    reviewed_at = await db.scalar(
+        select(func.max(RallyLabelSet.created_at)).where(RallyLabelSet.video_id == video.id)
+    )
     return RalliesOut(
         analysis=analysis,
         rallies=rallies,
         play_area=video.play_area,
         job=JobOut.of(job) if job else None,
+        reviewed_at=reviewed_at,
     )
 
 
@@ -671,4 +689,88 @@ async def analyze_video(
     video = await load_owned(db, user, video_id)
     await enqueue_analysis(db, video, body.sensitivity)
     await db.commit()
+    return await get_rallies(video_id, user, db)
+
+
+class RallyEditIn(BaseModel):
+    op: Literal["add", "modify", "delete"]
+    rally_id: uuid.UUID | None = None  # required for modify/delete
+    start_t: float | None = Field(default=None, ge=0)
+    end_t: float | None = Field(default=None, gt=0)
+
+
+async def _effective(db: DbSession, video: Video) -> tuple[AnalysisRun, list[Any]]:
+    run = await db.scalar(
+        select(AnalysisRun).where(AnalysisRun.video_id == video.id, AnalysisRun.is_active)
+    )
+    if run is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "rallies haven't been detected yet")
+    base = (await db.scalars(select(Rally).where(Rally.analysis_run_id == run.id))).all()
+    edits = (
+        await db.scalars(
+            select(RallyEdit).where(RallyEdit.video_id == video.id).order_by(RallyEdit.created_at)
+        )
+    ).all()
+    return run, apply_edits(base, edits)
+
+
+@router.post("/{video_id}/rallies/edits", response_model=RalliesOut, operation_id="editRally")
+async def edit_rally(
+    video_id: uuid.UUID, body: RallyEditIn, user: CurrentUser, db: DbSession
+) -> RalliesOut:
+    """Trim, add or delete a rally. Predictions are kept; edits are layered on top."""
+    video = await load_owned(db, user, video_id)
+    _, current = await _effective(db, video)
+    edit = RallyEdit(video_id=video.id, user_id=user.user_id, op=body.op)
+    if body.op != "add":
+        target = next((r for r in current if r.key == body.rally_id), None)
+        if target is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "rally not found")
+        if target.source == "model":
+            edit.base_rally_id = target.key
+        else:
+            edit.base_edit_id = target.key
+    if body.op != "delete":
+        if body.start_t is None or body.end_t is None or body.end_t - body.start_t < 0.5:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "a rally needs a start and an end"
+            )
+        if video.duration_s and body.end_t > video.duration_s + 0.5:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "end is past the video")
+        if overlaps(current, body.start_t, body.end_t, body.rally_id):
+            raise HTTPException(status.HTTP_409_CONFLICT, "rallies can't overlap")
+        edit.start_t, edit.end_t = round(body.start_t, 2), round(body.end_t, 2)
+    db.add(edit)
+    await db.commit()
+    return await get_rallies(video_id, user, db)
+
+
+@router.post("/{video_id}/review", response_model=RalliesOut, operation_id="markReviewed")
+async def mark_reviewed(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> RalliesOut:
+    """Freeze the current (corrected) rallies as ground truth for training and evaluation."""
+    video = await load_owned(db, user, video_id)
+    run, current = await _effective(db, video)
+    rallies = [
+        {
+            "start_t": r.start_t,
+            "end_t": r.end_t,
+            "source": r.source,
+            "edited": r.edited,
+            "predicted_start_t": r.predicted_start_t,
+            "predicted_end_t": r.predicted_end_t,
+        }
+        for r in current
+    ]
+    db.add(
+        RallyLabelSet(
+            video_id=video.id,
+            user_id=user.user_id,
+            base_run_id=run.id,
+            duration_s=video.duration_s or max((r.end_t for r in current), default=1.0),
+            rallies=rallies,
+            n_rallies=len(rallies),
+        )
+    )
+    await db.commit()
+    log.info("rallies_reviewed", video_id=str(video.id), n=len(rallies))
     return await get_rallies(video_id, user, db)

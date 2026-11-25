@@ -315,3 +315,73 @@ async def test_rallies_and_play_area(api: httpx.AsyncClient) -> None:
     assert not_ready.status_code == 409  # still processing
     other = await api.get(f"/videos/{vid}/rallies", headers=user())
     assert other.status_code == 404
+
+
+async def test_edit_and_review_rallies(api: httpx.AsyncClient, migrated_url: str) -> None:
+    import uuid as _uuid
+
+    from sqlalchemy import create_engine, text
+
+    h = user()
+    vid = await _uploaded(api, h)
+    assert (await api.post(f"/videos/{vid}/review", headers=h)).status_code == 409  # no run yet
+    engine = create_engine(migrated_url)
+    run = _uuid.uuid4()
+    try:
+        with engine.begin() as c:
+            c.execute(
+                text("UPDATE videos SET status='ready', duration_s=120, proxy_key=:k WHERE id=:id"),
+                {"id": vid, "k": f"p/{vid}"},
+            )
+            c.execute(
+                text(
+                    "INSERT INTO analysis_runs (id, video_id, pipeline_version, status, is_active) "
+                    "VALUES (:r, :v, 'rally-heuristic-1', 'succeeded', true)"
+                ),
+                {"r": run, "v": vid},
+            )
+            for s0, e0 in ((10, 20), (30, 40)):
+                c.execute(
+                    text(
+                        "INSERT INTO rallies (analysis_run_id, video_id, start_t, end_t, detector) "
+                        "VALUES (:r, :v, :s, :e, 'heuristic-v1')"
+                    ),
+                    {"r": run, "v": vid, "s": s0, "e": e0},
+                )
+    finally:
+        engine.dispose()
+
+    rs = (await api.get(f"/videos/{vid}/rallies", headers=h)).json()["rallies"]
+    first, second = rs[0]["id"], rs[1]["id"]
+    trim = {"op": "modify", "rally_id": first, "start_t": 11, "end_t": 17}
+    r = await api.post(f"/videos/{vid}/rallies/edits", json=trim, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["rallies"][0]["end_t"] == 17
+    assert r.json()["rallies"][0]["edited"] is True
+    clash = {"op": "add", "start_t": 35, "end_t": 45}
+    assert (
+        await api.post(f"/videos/{vid}/rallies/edits", json=clash, headers=h)
+    ).status_code == 409
+    add = {"op": "add", "start_t": 60, "end_t": 70}
+    r = await api.post(f"/videos/{vid}/rallies/edits", json=add, headers=h)
+    assert [x["source"] for x in r.json()["rallies"]] == ["model", "model", "user"]
+    delete = {"op": "delete", "rally_id": second}
+    r = await api.post(f"/videos/{vid}/rallies/edits", json=delete, headers=h)
+    assert [(x["start_t"], x["end_t"]) for x in r.json()["rallies"]] == [(11, 17), (60, 70)]
+    other = await api.post(f"/videos/{vid}/rallies/edits", json=add, headers=user())
+    assert other.status_code == 404
+
+    r = await api.post(f"/videos/{vid}/review", headers=h)
+    assert r.status_code == 200
+    assert r.json()["reviewed_at"] is not None
+    engine = create_engine(migrated_url)
+    try:
+        with engine.connect() as c:
+            labels = c.execute(
+                text("SELECT rallies, n_rallies FROM rally_label_sets WHERE video_id=:v"),
+                {"v": vid},
+            ).one()
+    finally:
+        engine.dispose()
+    assert labels.n_rallies == 2
+    assert labels.rallies[0]["predicted_end_t"] == 20  # what the model said, kept for training

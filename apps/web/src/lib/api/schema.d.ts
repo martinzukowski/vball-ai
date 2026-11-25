@@ -191,6 +191,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/videos/{video_id}/rallies/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit Rally
+         * @description Trim, add or delete a rally. Predictions are kept; edits are layered on top.
+         */
+        post: operations["editRally"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/videos/{video_id}/retry": {
         parameters: {
             query?: never;
@@ -205,6 +225,26 @@ export interface paths {
          * @description Re-run ingest for a video whose processing failed (needs the original upload).
          */
         post: operations["retryProcessing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{video_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Reviewed
+         * @description Freeze the current (corrected) rallies as ground truth for training and evaluation.
+         */
+        post: operations["markReviewed"];
         delete?: never;
         options?: never;
         head?: never;
@@ -436,9 +476,27 @@ export interface components {
             play_area: number[][] | null;
             /** Rallies */
             rallies: components["schemas"]["RallyOut"][];
+            /** Reviewed At */
+            reviewed_at: string | null;
+        };
+        /** RallyEditIn */
+        RallyEditIn: {
+            /** End T */
+            end_t?: number | null;
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "add" | "modify" | "delete";
+            /** Rally Id */
+            rally_id?: string | null;
+            /** Start T */
+            start_t?: number | null;
         };
         /** RallyOut */
         RallyOut: {
+            /** Edited */
+            edited: boolean;
             /** End T */
             end_t: number;
             /**
@@ -448,14 +506,15 @@ export interface components {
             id: string;
             /** Number */
             number: number;
-            /** Score */
-            score: number | null;
             /** Serve T */
             serve_t: number | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "model" | "user";
             /** Start T */
             start_t: number;
-            /** Whistle */
-            whistle: boolean;
         };
         /** Readiness */
         Readiness: {
@@ -889,6 +948,41 @@ export interface operations {
             };
         };
     };
+    editRally: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RallyEditIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RalliesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     retryProcessing: {
         parameters: {
             query?: never;
@@ -907,6 +1001,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VideoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    markReviewed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RalliesOut"];
                 };
             };
             /** @description Validation Error */

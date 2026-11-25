@@ -470,19 +470,90 @@
             },
             "title": "Rallies",
             "type": "array"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
           }
         },
         "required": [
           "analysis",
           "rallies",
           "play_area",
-          "job"
+          "job",
+          "reviewed_at"
         ],
         "title": "RalliesOut",
         "type": "object"
       },
+      "RallyEditIn": {
+        "properties": {
+          "end_t": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End T"
+          },
+          "op": {
+            "enum": [
+              "add",
+              "modify",
+              "delete"
+            ],
+            "title": "Op",
+            "type": "string"
+          },
+          "rally_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rally Id"
+          },
+          "start_t": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start T"
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "title": "RallyEditIn",
+        "type": "object"
+      },
       "RallyOut": {
         "properties": {
+          "edited": {
+            "title": "Edited",
+            "type": "boolean"
+          },
           "end_t": {
             "title": "End T",
             "type": "number"
@@ -496,17 +567,6 @@
             "title": "Number",
             "type": "integer"
           },
-          "score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score"
-          },
           "serve_t": {
             "anyOf": [
               {
@@ -518,13 +578,17 @@
             ],
             "title": "Serve T"
           },
+          "source": {
+            "enum": [
+              "model",
+              "user"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
           "start_t": {
             "title": "Start T",
             "type": "number"
-          },
-          "whistle": {
-            "title": "Whistle",
-            "type": "boolean"
           }
         },
         "required": [
@@ -533,8 +597,8 @@
           "start_t",
           "end_t",
           "serve_t",
-          "whistle",
-          "score"
+          "source",
+          "edited"
         ],
         "title": "RallyOut",
         "type": "object"
@@ -1313,6 +1377,65 @@
         ]
       }
     },
+    "/videos/{video_id}/rallies/edits": {
+      "post": {
+        "description": "Trim, add or delete a rally. Predictions are kept; edits are layered on top.",
+        "operationId": "editRally",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RallyEditIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RalliesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Edit Rally",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
     "/videos/{video_id}/retry": {
       "post": {
         "description": "Re-run ingest for a video whose processing failed (needs the original upload).",
@@ -1357,6 +1480,55 @@
           }
         ],
         "summary": "Retry Processing",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}/review": {
+      "post": {
+        "description": "Freeze the current (corrected) rallies as ground truth for training and evaluation.",
+        "operationId": "markReviewed",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RalliesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mark Reviewed",
         "tags": [
           "videos"
         ]
