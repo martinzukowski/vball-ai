@@ -10,6 +10,8 @@ Cached as ``.npz`` keyed by the video file's size + mtime + extractor version.
 
 from __future__ import annotations
 
+import json
+import shutil
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -19,7 +21,38 @@ import numpy.typing as npt
 import torch
 from transformers import AutoImageProcessor, AutoModel
 
-from vball_worker.media import probe, tool
+
+def tool(name: str) -> str:
+    path = shutil.which(name)
+    if path is None:
+        raise RuntimeError(f"{name} is not installed")
+    return path
+
+
+def displayed_size(video: Path) -> tuple[int, int]:
+    """Width/height after rotation (ffmpeg auto-rotates when decoding)."""
+    out = subprocess.run(  # noqa: S603
+        [
+            tool("ffprobe"),
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height:stream_side_data=rotation",
+            "-of",
+            "json",
+            str(video),
+        ],
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout
+    st = json.loads(out)["streams"][0]
+    w, h = int(st["width"]), int(st["height"])
+    rot = next((int(sd.get("rotation", 0)) for sd in st.get("side_data_list", [])), 0)
+    return (h, w) if abs(rot) % 180 == 90 else (w, h)
+
 
 STEP = 0.2
 EXTRACTOR_VERSION = "dinov2s-cls-crop+logband32-v1"
@@ -47,8 +80,8 @@ def _crop_box(
 def video_embeddings(
     video: Path, play_area: Sequence[Sequence[float]] | None, batch: int = 64
 ) -> F32:
-    info = probe(video)
-    x, y, cw, ch = _crop_box(play_area, info.width, info.height)
+    width, height = displayed_size(video)
+    x, y, cw, ch = _crop_box(play_area, width, height)
     vf = f"fps={1 / STEP:g},crop={cw}:{ch}:{x}:{y},scale={SIDE}:{SIDE}:flags=area"
     proc = subprocess.Popen(  # noqa: S603
         [

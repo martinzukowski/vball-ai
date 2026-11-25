@@ -254,3 +254,97 @@ def test_analysis_runs_after_ingest(
     assert run["params"]["detector"] == "heuristic-v1"
     assert segs >= 1
     assert storage.object_size(run["params"]["features_key"])
+
+
+def _register_model(
+    engine: Engine, storage: ObjectStorage, tmp_path: Path, corrupt: bool = False
+) -> str:
+    import hashlib
+
+    import numpy as np
+
+    from vball_ml.rally_model import Bundle, labels_for, save_bundle, train
+
+    x = np.random.default_rng(0).normal(size=(400, 416)).astype(np.float32)
+    y = labels_for(400, [(10.0, 30.0), (50.0, 70.0)])
+    x[y == 1, 0] += 3.0  # learnable signal
+    net, norm = train(x, y, np.ones(400, bool), epochs=40, crop=200)
+    path = tmp_path / "model.pt"
+    save_bundle(str(path), Bundle([net], norm, {"version": "test-1"}))
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    key = f"models/rally/test-{uuid.uuid4()}/model.pt"
+    storage.upload(str(path), key, "application/octet-stream")
+    with engine.begin() as c:
+        c.execute(text("UPDATE model_versions SET status='retired' WHERE status='production'"))
+        c.execute(
+            text(
+                "INSERT INTO model_versions (task, name, version, artifact_uri, sha256, framework, "
+                "status, promoted_at) VALUES ('rally','t',:v,:k,:s,'pytorch','production',now())"
+            ),
+            {"v": f"test-{uuid.uuid4().hex[:6]}", "k": key, "s": "0" * 64 if corrupt else digest},
+        )
+    return digest
+
+
+@pytest.fixture
+def fake_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    import numpy as np
+
+    import vball_ml.features as feats
+
+    def fake_extract(video: Any, play_area: Any, cache_dir: Any) -> Any:
+        n = int(probe(video).duration_s / 0.2)
+        x = np.zeros((n, 416), np.float32)
+        x[: n // 2, 0] = 3.0  # first half looks like "rally" to the test model
+        return x
+
+    monkeypatch.setattr(feats, "extract", fake_extract)
+
+
+def _active_run(engine: Engine, video_id: uuid.UUID) -> dict[str, Any]:
+    with engine.connect() as c:
+        return dict(
+            c.execute(
+                text("SELECT * FROM analysis_runs WHERE video_id=:v AND is_active"), {"v": video_id}
+            )
+            .mappings()
+            .one()
+        )
+
+
+def test_learned_model_used_when_registered(
+    worker: Worker, engine: Engine, storage: ObjectStorage, tmp_path: Path, fake_embeddings: None
+) -> None:
+    _register_model(engine, storage, tmp_path)
+    try:
+        v = uploaded_video(engine, storage, make_clip(tmp_path / "l.mov", seconds=8))
+        worker.run_until_idle()
+        run = _active_run(engine, v["id"])
+        assert run["pipeline_version"] == "rally-learned-1"
+        assert run["params"]["detector"].startswith("learned:")
+        assert run["model_version_ids"]
+        with engine.connect() as c:
+            rows = c.execute(
+                text("SELECT detector, confidence FROM rallies WHERE analysis_run_id=:r"),
+                {"r": run["id"]},
+            ).all()
+        assert rows
+        assert all(r.detector.startswith("learned:") and 0 <= r.confidence <= 1 for r in rows)
+    finally:
+        with engine.begin() as c:
+            c.execute(text("UPDATE model_versions SET status='retired' WHERE status='production'"))
+
+
+def test_corrupt_model_falls_back_to_heuristic(
+    worker: Worker, engine: Engine, storage: ObjectStorage, tmp_path: Path, fake_embeddings: None
+) -> None:
+    _register_model(engine, storage, tmp_path, corrupt=True)
+    try:
+        v = uploaded_video(engine, storage, make_clip(tmp_path / "c2.mov", seconds=6))
+        worker.run_until_idle()
+        run = _active_run(engine, v["id"])
+        assert run["pipeline_version"] == "rally-heuristic-1"
+        assert run["params"]["fallback_reason"].startswith("learned model failed")
+    finally:
+        with engine.begin() as c:
+            c.execute(text("UPDATE model_versions SET status='retired' WHERE status='production'"))

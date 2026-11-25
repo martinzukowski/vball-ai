@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "numpy>=2.5.5",
     "vball-core",
+    "vball-ml",
 ]
 
 [project.scripts]
@@ -13,6 +14,7 @@ vball-worker = "vball_worker.__main__:main"
 
 [tool.uv.sources]
 vball-core = { workspace = true }
+vball-ml = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

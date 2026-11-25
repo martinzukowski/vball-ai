@@ -129,3 +129,42 @@ def decode(
         else:
             i += 1
     return [(round(s, 1), round(e, 1)) for s, e in spans if e - s >= min_len_s]
+
+
+@dataclass
+class Bundle:
+    """A trained rally model: an ensemble of nets (averaged) + the input normaliser."""
+
+    nets: list[TemporalNet]
+    norm: Normaliser
+    meta: dict[str, object]
+
+    def predict(self, x: F32) -> F32:
+        return np.mean([predict(n, self.norm, x) for n in self.nets], axis=0).astype(np.float32)
+
+
+def save_bundle(path: str, bundle: Bundle) -> None:
+    torch.save(
+        {
+            "format": 1,
+            "n_in": int(bundle.norm.mean.shape[0]),
+            "mean": bundle.norm.mean,
+            "std": bundle.norm.std,
+            "states": [n.state_dict() for n in bundle.nets],
+            "meta": bundle.meta,
+        },
+        path,
+    )
+
+
+def load_bundle(path: str) -> Bundle:
+    blob = torch.load(path, map_location="cpu", weights_only=False)
+    if blob.get("format") != 1:
+        raise ValueError("unsupported rally model format")
+    nets = []
+    for state in blob["states"]:
+        net = TemporalNet(blob["n_in"])
+        net.load_state_dict(state)
+        net.eval()
+        nets.append(net)
+    return Bundle(nets, Normaliser(blob["mean"], blob["std"]), dict(blob["meta"]))

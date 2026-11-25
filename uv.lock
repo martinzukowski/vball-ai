@@ -1496,7 +1496,6 @@ dependencies = [
     { name = "torch", version = "2.15.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
     { name = "transformers" },
     { name = "vball-core" },
-    { name = "vball-worker" },
 ]
 
 [package.metadata]
@@ -1507,7 +1506,6 @@ requires-dist = [
     { name = "torch", specifier = ">=2.6", index = "https://download.pytorch.org/whl/cpu" },
     { name = "transformers", specifier = ">=4.50" },
     { name = "vball-core", editable = "packages/vball_core" },
-    { name = "vball-worker", editable = "services/worker" },
 ]
 
 [[package]]
@@ -1517,12 +1515,14 @@ source = { editable = "services/worker" }
 dependencies = [
     { name = "numpy" },
     { name = "vball-core" },
+    { name = "vball-ml" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=2.5.5" },
     { name = "vball-core", editable = "packages/vball_core" },
+    { name = "vball-ml", editable = "ml" },
 ]
 
 [[package]]

@@ -3,3 +3,4 @@ Bump a version whenever its output changes; results record the version that prod
 
 INGEST = "ingest-1"
 RALLY_HEURISTIC = "rally-heuristic-1"
+RALLY_LEARNED = "rally-learned-1"
