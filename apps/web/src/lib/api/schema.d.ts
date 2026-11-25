@@ -134,6 +134,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/videos/{video_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Processing
+         * @description Re-run ingest for a video whose processing failed (needs the original upload).
+         */
+        post: operations["retryProcessing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/videos/{video_id}/upload": {
         parameters: {
             query?: never;
@@ -223,6 +243,49 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * JobErrorCode
+         * @enum {string}
+         */
+        JobErrorCode: "input_invalid" | "transient" | "internal" | "cancelled";
+        /**
+         * JobKind
+         * @enum {string}
+         */
+        JobKind: "ingest" | "analyze" | "redetect" | "highlight";
+        /** JobOut */
+        JobOut: {
+            /** Attempt */
+            attempt: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            error_code: components["schemas"]["JobErrorCode"] | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["JobKind"];
+            /** Max Attempts */
+            max_attempts: number;
+            /** Progress */
+            progress: number;
+            /** Stage */
+            stage: string | null;
+            state: components["schemas"]["JobState"];
+        };
+        /**
+         * JobState
+         * @enum {string}
+         */
+        JobState: "queued" | "running" | "succeeded" | "failed" | "cancelled";
         /** Me */
         Me: {
             /** Display Name */
@@ -363,6 +426,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Original Available */
+            original_available: boolean;
+            /** Poster Url */
+            poster_url?: string | null;
+            processing?: components["schemas"]["JobOut"] | null;
             /** Size Bytes */
             size_bytes: number;
             status: components["schemas"]["VideoStatus"];
@@ -583,6 +651,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlaybackUrl"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retryProcessing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoOut"];
                 };
             };
             /** @description Validation Error */

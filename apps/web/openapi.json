@@ -84,6 +84,128 @@
         "title": "Health",
         "type": "object"
       },
+      "JobErrorCode": {
+        "enum": [
+          "input_invalid",
+          "transient",
+          "internal",
+          "cancelled"
+        ],
+        "title": "JobErrorCode",
+        "type": "string"
+      },
+      "JobKind": {
+        "enum": [
+          "ingest",
+          "analyze",
+          "redetect",
+          "highlight"
+        ],
+        "title": "JobKind",
+        "type": "string"
+      },
+      "JobOut": {
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobErrorCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/JobKind"
+          },
+          "max_attempts": {
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "progress": {
+            "title": "Progress",
+            "type": "number"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "stage",
+          "progress",
+          "attempt",
+          "max_attempts",
+          "error_code",
+          "error_message",
+          "created_at",
+          "finished_at"
+        ],
+        "title": "JobOut",
+        "type": "object"
+      },
+      "JobState": {
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ],
+        "title": "JobState",
+        "type": "string"
+      },
       "Me": {
         "properties": {
           "display_name": {
@@ -450,6 +572,31 @@
             "title": "Id",
             "type": "string"
           },
+          "original_available": {
+            "title": "Original Available",
+            "type": "boolean"
+          },
+          "poster_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster Url"
+          },
+          "processing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "size_bytes": {
             "title": "Size Bytes",
             "type": "integer"
@@ -478,7 +625,8 @@
           "duration_s",
           "width",
           "height",
-          "error_message"
+          "error_message",
+          "original_available"
         ],
         "title": "VideoOut",
         "type": "object"
@@ -793,6 +941,55 @@
           }
         ],
         "summary": "Get Playback Url",
+        "tags": [
+          "videos"
+        ]
+      }
+    },
+    "/videos/{video_id}/retry": {
+      "post": {
+        "description": "Re-run ingest for a video whose processing failed (needs the original upload).",
+        "operationId": "retryProcessing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "video_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Video Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Retry Processing",
         "tags": [
           "videos"
         ]

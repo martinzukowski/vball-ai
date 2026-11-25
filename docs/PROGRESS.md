@@ -22,8 +22,8 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M1 Database schema + migrations | Done | |
 | M2 Sign-in (Supabase) | Done locally | Phone test waits for deployment (M8) |
 | M3 Direct uploads to object storage | Done locally | Needs Cloudflare R2 account for production |
-| M4 Job system + ingest worker | In progress | Queue done + tested; worker not started |
-| M5 Heuristic rally detection in worker | | |
+| M4 Job system + ingest worker | Done locally | Web progress UI not yet seen while signed in |
+| M5 Heuristic rally detection in worker | Next | |
 | M6 Review/correction web UI | | |
 | M7 Server-side highlights | | |
 | M8 Deployment (Vercel, Modal, Supabase, R2) | | |
@@ -79,51 +79,31 @@ what comes next. Read this first when picking the project up. Design rationale l
   mismatch, validation, cross-user 404s, delete), 7 Vitest tests for the engine, and a real
   40 MB 3-part upload + delete in the browser while signed in.
 
-### M4 — Job system + ingest worker (in progress, 2026-11-24)
-Done:
-- `packages/vball_core/src/vball_core/jobs.py`: Postgres queue. Idempotent `enqueue`,
-  `claim` (SKIP LOCKED, increments attempt, 5-min lease), `heartbeat` (extends lease, raises
-  `LeaseLostError` if lost/cancelled; progress capped at 0.99), `succeed`/`fail` (only by the
-  lease holder; retryable failures back off 30s·2^n up to 10 min), `sweep` (requeue expired
-  leases or fail after max attempts; finalise cancelled queued jobs), `runnable_count`.
-- 12 tests in `packages/vball_core/tests/test_jobs.py` incl. 8 threads racing for 30 jobs.
-- Migration `0003`: `videos.proxy_size_bytes`. Settings: `proxy_height` (720),
-  `keep_originals` (false), `max_video_duration_s` (4 h), `worker_poll_interval_s`,
-  `worker_scratch_dir`.
-
-**Resume here — remaining M4 steps:**
-1. `services/worker` package (`vball_worker`): add to the uv workspace (`pyproject.toml`
-   members + sources) and mypy `files`.
-   - `media.py`: ffprobe JSON → duration, fps, displayed width/height, rotation (display
-     matrix), codecs, HDR transfer (`arib-std-b67`/`smpte2084`). Transcode proxy:
-     `scale=-2:'min(720,trunc(ih/2)*2)'`, libx264 veryfast CRF 26, yuv420p, `-fpsmax 60`,
-     keyframe every 2 s (`-force_key_frames expr:gte(t,n_forced*2)`), AAC 96k stereo,
-     `+faststart`, `-progress pipe:1` for progress. iPhone HDR → tone-map with zscale/tonemap
-     (check the Debian ffmpeg has libzimg). Poster JPEG from the proxy at ~10% of duration.
-   - `ingest.py`: download original (boto3 `download_file`) → sha256 → probe (non-video,
-     zero duration, > max duration → `INPUT_INVALID`, not retried) → proxy + poster → upload to
-     `proxies/{owner}/{video}.mp4` / `posters/...jpg` → set metadata, `proxy_key`,
-     `proxy_size_bytes`, status `ready` → delete original unless `keep_originals`
-     (`original_deleted_at`). Video status: `ingesting` on claim, `failed` + friendly
-     `error_message` when the job fails for good.
-   - `runner.py`: loop = sweep → reconcile videos stuck in `ingesting` whose ingest job failed
-     → claim → run handler with a heartbeat thread (20 s) → succeed/fail; classify errors
-     (input invalid / transient boto+network / internal); write `job_stage_metrics` per stage
-     (wall, cpu via `os.times()` incl. children). `__main__.py`: polling loop.
-   - Storage additions needed: `download(key, path)`, `upload(path, key, content_type)`.
-2. API: in `complete_upload`, enqueue the ingest job in the same transaction
-   (`await db.run_sync(lambda s: jobs.enqueue(s.connection(), ...))`, pipeline `ingest-1`).
-   Add latest-job info (state, stage, progress, error) to `VideoOut`; `stored_bytes` must count
-   `proxy_size_bytes` and only originals not yet deleted.
-3. `infra/docker/worker.Dockerfile` (python:3.12-slim + apt ffmpeg) and a `worker` service in
-   compose (same S3 env as the api service).
-4. Tests: ingest on a generated clip (`ffmpeg -f lavfi -i testsrc2=size=1920x1080:rate=30
-   -f lavfi -i sine -t 5 ...`) → proxy ≤720p, metadata, original deleted, status ready;
-   garbage bytes → failed `input_invalid`. CI: `sudo apt-get install -y ffmpeg` in the Python job.
-5. Web: show "Preparing… NN%" from the job and poll every 5 s while any video is
-   uploaded/ingesting; play the proxy.
-6. Measure wall/CPU time per minute of video on a real match and record it here (replaces the
-   cost estimates in ARCHITECTURE.md §12).
+### M4 — Job system + ingest worker (2026-11-24 → 25)
+- Queue: `packages/vball_core/src/vball_core/jobs.py` (Postgres, SKIP LOCKED claims, 5-min
+  leases + heartbeats, retries with backoff, sweep for crashed workers, cancel). 12 tests incl.
+  8 threads racing for 30 jobs.
+- Worker: `services/worker/src/vball_worker/` — `media.py` (ffprobe validation, proxy
+  transcode, poster), `ingest.py`, `context.py` (progress, cancellation, per-stage metrics in
+  `job_stage_metrics`), `runner.py` (loop, error classification, video status reconcile).
+  Runs as `python -m vball_worker` (Docker `worker` service) or `Worker.run_until_idle()`.
+- Ingest: download original → sha256 → ffprobe (non-video / no duration / > 4 h → failed,
+  not retried, friendly message) → proxy: short side ≤720 px (portrait stays portrait),
+  H.264 CRF 26 veryfast, ≤60 fps, keyframe every 2 s, AAC 96k, faststart, metadata stripped
+  (GPS), iPhone HDR (HLG/PQ) tone-mapped to SDR → poster JPEG → upload → mark ready
+  atomically with job success → delete original (`VBALL_KEEP_ORIGINALS=true` to keep).
+- API: upload completion enqueues ingest in the same transaction; videos carry
+  `processing` (latest job: state, stage, progress, error), `poster_url`, `original_available`;
+  `POST /videos/{id}/retry` for failed videos; delete cancels running jobs; storage usage counts
+  proxies. Pipeline versions in `vball_core/pipelines.py`.
+- Web: library polls every 4 s while anything is processing and shows stage + %; poster
+  thumbnails; Retry button; `/videos/[id]` plays the proxy.
+- Verified: 137 Python tests (21 worker tests with real ffmpeg + S3 + Postgres: rotated and HDR
+  clips, junk file, missing original → retries then fails, cancel mid-run), CI installs ffmpeg
+  and checks the worker image has zscale/tonemap. Docker worker processed a 20 s 1080p clip
+  queued for the owner: ready in 2.3 s, proxy 2.5 MB, original deleted.
+- Not yet measured: a real match. Synthetic test patterns compress unrealistically well, so
+  don't use the 2.5 MB/20 s figure for storage planning.
 
 ## Decisions to remember
 

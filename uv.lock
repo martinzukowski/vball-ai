@@ -6,6 +6,7 @@ requires-python = "==3.12.*"
 members = [
     "vball-api",
     "vball-core",
+    "vball-worker",
     "vball-workspace",
 ]
 
@@ -1021,12 +1022,24 @@ requires-dist = [
 ]
 
 [[package]]
+name = "vball-worker"
+version = "0.1.0"
+source = { editable = "services/worker" }
+dependencies = [
+    { name = "vball-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "vball-core", editable = "packages/vball_core" }]
+
+[[package]]
 name = "vball-workspace"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "vball-api" },
     { name = "vball-core" },
+    { name = "vball-worker" },
 ]
 
 [package.dev-dependencies]
@@ -1044,6 +1057,7 @@ dev = [
 requires-dist = [
     { name = "vball-api", editable = "services/api" },
     { name = "vball-core", editable = "packages/vball_core" },
+    { name = "vball-worker", editable = "services/worker" },
 ]
 
 [package.metadata.requires-dev]

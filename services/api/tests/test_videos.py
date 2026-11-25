@@ -224,3 +224,78 @@ async def test_readyz_checks_storage(api: httpx.AsyncClient) -> None:
     r = await api.get("/readyz")
     assert r.status_code == 200
     assert r.json()["checks"]["storage"]["ok"] is True
+
+
+async def _uploaded(api: httpx.AsyncClient, h: dict[str, str]) -> str:
+    data = b"v" * 2048
+    plan = await create(api, h, len(data))
+    vid: str = plan["video"]["id"]
+    await put_parts(api, h, vid, data, plan["part_size_bytes"], [1])
+    assert (await api.post(f"/videos/{vid}/upload/complete", headers=h)).status_code == 200
+    return vid
+
+
+async def test_complete_queues_ingest_job(api: httpx.AsyncClient) -> None:
+    h = user()
+    vid = await _uploaded(api, h)
+    body = (await api.get(f"/videos/{vid}", headers=h)).json()
+    assert body["status"] == "uploaded"
+    assert body["original_available"] is True
+    assert body["processing"]["kind"] == "ingest"
+    assert body["processing"]["state"] == "queued"
+    # Completing again doesn't queue a second job.
+    await api.post(f"/videos/{vid}/upload/complete", headers=h)
+    listed = (await api.get("/videos", headers=h)).json()["videos"]
+    assert listed[0]["processing"]["id"] == body["processing"]["id"]
+
+
+async def test_retry_only_for_failed_videos(api: httpx.AsyncClient, migrated_url: str) -> None:
+    from sqlalchemy import create_engine, text
+
+    h = user()
+    vid = await _uploaded(api, h)
+    assert (await api.post(f"/videos/{vid}/retry", headers=h)).status_code == 409
+
+    engine = create_engine(migrated_url)
+    try:
+        with engine.begin() as c:
+            c.execute(
+                text(
+                    "UPDATE processing_jobs SET state='failed', attempt=1, finished_at=now(), "
+                    "error_code='input_invalid', error_message='bad' WHERE video_id=:id"
+                ),
+                {"id": vid},
+            )
+            c.execute(
+                text("UPDATE videos SET status='failed', error_message='bad' WHERE id=:id"),
+                {"id": vid},
+            )
+        r = await api.post(f"/videos/{vid}/retry", headers=h)
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "uploaded"
+        assert r.json()["processing"]["state"] == "queued"
+        with engine.connect() as c:
+            n = c.execute(
+                text("SELECT count(*) FROM processing_jobs WHERE video_id=:id"), {"id": vid}
+            ).scalar_one()
+        assert n == 2
+    finally:
+        engine.dispose()
+
+
+async def test_delete_cancels_processing(api: httpx.AsyncClient, migrated_url: str) -> None:
+    from sqlalchemy import create_engine, text
+
+    h = user()
+    vid = await _uploaded(api, h)
+    assert (await api.delete(f"/videos/{vid}", headers=h)).status_code == 204
+    engine = create_engine(migrated_url)
+    try:
+        with engine.connect() as c:
+            cancel = c.execute(
+                text("SELECT cancel_requested FROM processing_jobs WHERE video_id=:id"),
+                {"id": vid},
+            ).scalar_one()
+    finally:
+        engine.dispose()
+    assert cancel is True

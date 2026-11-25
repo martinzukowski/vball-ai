@@ -39,6 +39,8 @@ jobs:
         run: |
           docker run -d --name s3 -p 8333:8333             -v "$PWD/infra/docker/seaweedfs-s3.json:/etc/seaweedfs/s3.json:ro"             chrislusf/seaweedfs:4.55 server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json
           for i in $(seq 1 60); do curl -sf http://localhost:8333/healthz && break; sleep 1; done
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -87,11 +89,14 @@ jobs:
       - run: pnpm web:build
 
   docker:
-    name: API image builds
+    name: Images build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - run: docker build -f infra/docker/api.Dockerfile -t vball-api:ci .
+      - run: docker build -f infra/docker/worker.Dockerfile -t vball-worker:ci .
+      - name: Worker image has ffmpeg with the filters ingest needs
+        run: docker run --rm vball-worker:ci sh -c "ffmpeg -hide_banner -filters | grep -E ' (zscale|tonemap) '"
 
   secrets:
     name: Secret scan

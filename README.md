@@ -3,7 +3,8 @@
 Cloud volleyball video analysis: upload a match from your phone, get rallies (and later
 players, ball tracking, actions and statistics) computed on remote workers.
 
-**Status: milestones M0–M3 (foundation, database, sign-in, uploads).** No analysis yet.
+**Status: milestones M0–M4 (foundation, database, sign-in, uploads, processing worker).**
+No rally detection yet.
 Progress log and decisions: [docs/PROGRESS.md](docs/PROGRESS.md). Sign-in needs a Supabase project: see [docs/setup-supabase.md](docs/setup-supabase.md).
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the milestone plan.
@@ -14,19 +15,21 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the design and
 |---|---|
 | `apps/web` | Next.js + TypeScript frontend (Vercel) |
 | `services/api` | FastAPI backend |
-| `packages/vball_core` | Shared Python: settings, logging, database models |
+| `services/worker` | Background worker: ffprobe/ffmpeg ingest (playback proxy, poster) |
+| `packages/vball_core` | Shared Python: settings, database models, storage, job queue |
 | `migrations` | Alembic database migrations |
 | `infra/docker` | Local dev stack (Postgres, SeaweedFS S3, API) and Dockerfiles |
 
 ## Local development
 
-Requirements: Docker, [uv](https://docs.astral.sh/uv/), Node 22+ and pnpm.
+Requirements: Docker, [uv](https://docs.astral.sh/uv/), Node 22+, pnpm, and ffmpeg (for worker
+tests).
 
 ```sh
 cp .env.example .env
 uv sync                       # Python deps (Python 3.12 is fetched automatically)
 pnpm install                  # web deps
-docker compose -f infra/docker/compose.yaml up --build   # Postgres, S3 stand-in, migrations, API
+docker compose -f infra/docker/compose.yaml up --build   # Postgres, S3 stand-in, migrations, API, worker
 pnpm web:dev                  # http://localhost:3000
 ```
 

@@ -69,6 +69,23 @@ services:
       timeout: 3s
       retries: 10
 
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/worker.Dockerfile
+    environment:
+      VBALL_ENV: local
+      VBALL_LOG_JSON: "false"
+      VBALL_DATABASE_URL: postgresql+psycopg://vball:vball-local-only@postgres:5432/vball
+      VBALL_S3_ENDPOINT_URL: http://s3:8333
+      VBALL_S3_ACCESS_KEY_ID: vball-local
+      VBALL_S3_SECRET_ACCESS_KEY: vball-local-only-secret
+      VBALL_S3_BUCKET: vball
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      s3: { condition: service_healthy }
+    restart: unless-stopped
+
 volumes:
   pgdata:
   s3data:

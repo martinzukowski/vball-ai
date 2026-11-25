@@ -152,6 +152,12 @@ class ObjectStorage:
                 return None
             raise
 
+    def download(self, key: str, path: str) -> None:
+        self._s3.download_file(self.bucket, key, path)
+
+    def upload(self, path: str, key: str, content_type: str) -> None:
+        self._s3.upload_file(path, self.bucket, key, ExtraArgs={"ContentType": content_type})
+
     def delete(self, key: str) -> None:
         self._s3.delete_object(Bucket=self.bucket, Key=key)
 

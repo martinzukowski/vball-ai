@@ -3,7 +3,7 @@ name = "vball-workspace"
 version = "0.0.0"
 description = "Workspace root for the VBall Python packages"
 requires-python = ">=3.12,<3.13"
-dependencies = ["vball-core", "vball-api"]
+dependencies = ["vball-core", "vball-api", "vball-worker"]
 
 [dependency-groups]
 dev = [
@@ -20,11 +20,12 @@ dev = [
 package = false
 
 [tool.uv.workspace]
-members = ["packages/vball_core", "services/api"]
+members = ["packages/vball_core", "services/api", "services/worker"]
 
 [tool.uv.sources]
 vball-core = { workspace = true }
 vball-api = { workspace = true }
+vball-worker = { workspace = true }
 
 [tool.ruff]
 line-length = 100
@@ -36,23 +37,26 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "ASYNC", "PT"]
 ignore = ["S101"]  # asserts are fine in tests
 
 [tool.ruff.lint.isort]
-known-first-party = ["vball_core", "vball_api", "conftest", "authkit"]
+known-first-party = ["vball_core", "vball_api", "vball_worker", "conftest", "authkit"]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S105", "S106", "S608"]
+"**/tests/**" = ["S105", "S106", "S603", "S607", "S608"]
 "migrations/**" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["packages/vball_core/src", "services/api/src"]
+files = ["packages/vball_core/src", "services/api/src", "services/worker/src"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/vball_core/tests", "services/api/tests"]
+testpaths = ["packages/vball_core/tests", "services/api/tests", "services/worker/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 addopts = "-ra --strict-markers --import-mode=importlib"
-pythonpath = ["services/api/tests"]
-markers = ["db: needs a PostgreSQL server (VBALL_TEST_DATABASE_URL)"]
+pythonpath = ["services/api/tests", "services/worker/tests"]
+markers = [
+    "db: needs a PostgreSQL server (VBALL_TEST_DATABASE_URL)",
+    "ffmpeg: needs ffmpeg and ffprobe on PATH",
+]

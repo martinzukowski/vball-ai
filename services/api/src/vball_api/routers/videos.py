@@ -16,11 +16,14 @@ from typing import Annotated, Literal
 from anyio import to_thread
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import Connection, case, func, select, update
+from sqlalchemy.dialects.postgresql import distinct_on
+from sqlalchemy.orm import Session
 
 from vball_api.deps import CurrentUser, DbSession, ensure_owner
-from vball_core.db.enums import VideoStatus
-from vball_core.db.models import Profile, Upload, Video
+from vball_core import jobs, pipelines
+from vball_core.db.enums import JobErrorCode, JobKind, JobState, VideoStatus
+from vball_core.db.models import ProcessingJob, Profile, Upload, Video
 from vball_core.logging import get_logger
 from vball_core.settings import Settings
 from vball_core.storage import ObjectStorage, StorageNotConfiguredError, part_plan
@@ -49,6 +52,36 @@ AppSettings = Annotated[Settings, Depends(get_settings)]
 
 
 # --- schemas -------------------------------------------------------------------------------
+class JobOut(BaseModel):
+    id: uuid.UUID
+    kind: JobKind
+    state: JobState
+    stage: str | None
+    progress: float
+    attempt: int
+    max_attempts: int
+    error_code: JobErrorCode | None
+    error_message: str | None
+    created_at: datetime
+    finished_at: datetime | None
+
+    @classmethod
+    def of(cls, j: ProcessingJob) -> JobOut:
+        return cls(
+            id=j.id,
+            kind=j.kind,
+            state=j.state,
+            stage=j.stage,
+            progress=j.progress,
+            attempt=j.attempt,
+            max_attempts=j.max_attempts,
+            error_code=j.error_code,
+            error_message=j.error_message,
+            created_at=j.created_at,
+            finished_at=j.finished_at,
+        )
+
+
 class VideoOut(BaseModel):
     id: uuid.UUID
     filename: str
@@ -59,9 +92,14 @@ class VideoOut(BaseModel):
     width: int | None
     height: int | None
     error_message: str | None
+    original_available: bool
+    poster_url: str | None = None
+    processing: JobOut | None = None  # most recent job for this video
 
     @classmethod
-    def of(cls, v: Video) -> VideoOut:
+    def of(
+        cls, v: Video, job: ProcessingJob | None = None, poster_url: str | None = None
+    ) -> VideoOut:
         return cls(
             id=v.id,
             filename=v.filename,
@@ -72,6 +110,9 @@ class VideoOut(BaseModel):
             width=v.width,
             height=v.height,
             error_message=v.error_message,
+            original_available=v.original_deleted_at is None,
+            poster_url=poster_url,
+            processing=JobOut.of(job) if job else None,
         )
 
 
@@ -147,13 +188,57 @@ def original_key(owner_id: uuid.UUID, video_id: uuid.UUID, ext: str) -> str:
 
 
 async def stored_bytes(db: DbSession) -> int:
-    """Bytes currently held in storage for all videos (single-user app: the whole bucket)."""
+    """Bytes currently held in storage for all videos (single-user app: the whole bucket):
+    originals not yet deleted plus playback proxies."""
+    per_video = case((Video.original_deleted_at.is_(None), Video.size_bytes), else_=0) + (
+        func.coalesce(Video.proxy_size_bytes, 0)
+    )
     total = await db.scalar(
-        select(func.coalesce(func.sum(Video.size_bytes), 0)).where(
-            Video.status != VideoStatus.DELETED, Video.original_deleted_at.is_(None)
-        )
+        select(func.coalesce(func.sum(per_video), 0)).where(Video.status != VideoStatus.DELETED)
     )
     return int(total or 0)
+
+
+async def latest_jobs(db: DbSession, video_ids: list[uuid.UUID]) -> dict[uuid.UUID, ProcessingJob]:
+    if not video_ids:
+        return {}
+    rows = await db.scalars(
+        select(ProcessingJob)
+        .where(ProcessingJob.video_id.in_(video_ids))
+        .order_by(ProcessingJob.video_id, ProcessingJob.created_at.desc())
+        .ext(distinct_on(ProcessingJob.video_id))
+    )
+    return {j.video_id: j for j in rows}
+
+
+async def poster_url(storage: ObjectStorage, video: Video) -> str | None:
+    if not video.poster_key:
+        return None
+    return await to_thread.run_sync(storage.presign_get, video.poster_key, 3600, None)
+
+
+async def video_out(db: DbSession, storage: ObjectStorage, video: Video) -> VideoOut:
+    job = (await latest_jobs(db, [video.id])).get(video.id)
+    return VideoOut.of(video, job, await poster_url(storage, video))
+
+
+async def enqueue_ingest(
+    db: DbSession, video: Video, params: dict[str, object] | None = None
+) -> None:
+    """Queue ingest in the caller's transaction, so an upload never exists without its job."""
+
+    def run(session: Session) -> None:
+        conn: Connection = session.connection()
+        jobs.enqueue(
+            conn,
+            video_id=video.id,
+            owner_id=video.owner_id,
+            kind=JobKind.INGEST,
+            pipeline_version=pipelines.INGEST,
+            params=dict(params or {}),
+        )
+
+    await db.run_sync(run)
 
 
 async def storage_cap(db: DbSession, user: CurrentUser, settings: Settings) -> int:
@@ -185,7 +270,9 @@ def require_open(video: Video, upload: Upload) -> None:
 
 # --- routes --------------------------------------------------------------------------------
 @router.get("", response_model=VideoList, operation_id="listVideos")
-async def list_videos(user: CurrentUser, db: DbSession, settings: AppSettings) -> VideoList:
+async def list_videos(
+    user: CurrentUser, db: DbSession, settings: AppSettings, storage: Storage
+) -> VideoList:
     rows = (
         await db.scalars(
             select(Video)
@@ -193,8 +280,9 @@ async def list_videos(user: CurrentUser, db: DbSession, settings: AppSettings) -
             .order_by(Video.created_at.desc())
         )
     ).all()
+    latest = await latest_jobs(db, [v.id for v in rows])
     return VideoList(
-        videos=[VideoOut.of(v) for v in rows],
+        videos=[VideoOut.of(v, latest.get(v.id), await poster_url(storage, v)) for v in rows],
         storage=StorageUsage(
             used_bytes=await stored_bytes(db), cap_bytes=await storage_cap(db, user, settings)
         ),
@@ -202,8 +290,10 @@ async def list_videos(user: CurrentUser, db: DbSession, settings: AppSettings) -
 
 
 @router.get("/{video_id}", response_model=VideoOut, operation_id="getVideo")
-async def get_video(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> VideoOut:
-    return VideoOut.of(await load_owned(db, user, video_id))
+async def get_video(
+    video_id: uuid.UUID, user: CurrentUser, db: DbSession, storage: Storage
+) -> VideoOut:
+    return await video_out(db, storage, await load_owned(db, user, video_id))
 
 
 @router.post(
@@ -331,7 +421,7 @@ async def complete_upload(
     video = await load_owned(db, user, video_id)  # row lock serialises concurrent completes
     upload = await load_upload(db, video)
     if upload.completed_at is not None:
-        return VideoOut.of(video)  # idempotent
+        return await video_out(db, storage, video)  # idempotent
     require_open(video, upload)
 
     parts = await to_thread.run_sync(
@@ -366,10 +456,11 @@ async def complete_upload(
 
     upload.completed_at = datetime.now(UTC)
     video.status = VideoStatus.UPLOADED
+    await enqueue_ingest(db, video)
     await db.commit()
     await db.refresh(video)
     log.info("upload_completed", video_id=str(video.id), size=size)
-    return VideoOut.of(video)
+    return await video_out(db, storage, video)
 
 
 @router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT, operation_id="deleteVideo")
@@ -386,12 +477,47 @@ async def delete_video(
             if key:
                 storage.delete(key)
 
+    # Stop any processing first so a worker doesn't recreate files we're about to delete.
+    await db.execute(
+        update(ProcessingJob)
+        .where(
+            ProcessingJob.video_id == video.id,
+            ProcessingJob.state.in_([JobState.QUEUED, JobState.RUNNING]),
+        )
+        .values(cancel_requested=True)
+    )
     await to_thread.run_sync(remove_objects)
     video.status = VideoStatus.DELETED
     video.deleted_at = datetime.now(UTC)
     await db.commit()
     log.info("video_deleted", video_id=str(video.id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{video_id}/retry", response_model=VideoOut, operation_id="retryProcessing")
+async def retry_processing(
+    video_id: uuid.UUID, user: CurrentUser, db: DbSession, storage: Storage
+) -> VideoOut:
+    """Re-run ingest for a video whose processing failed (needs the original upload)."""
+    video = await load_owned(db, user, video_id)
+    if video.status != VideoStatus.FAILED:
+        raise HTTPException(status.HTTP_409_CONFLICT, "only failed videos can be retried")
+    if video.original_deleted_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "the original upload is no longer available")
+    upload = await db.scalar(select(Upload).where(Upload.video_id == video.id))
+    if upload is None or upload.completed_at is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "the upload never finished; upload again")
+    previous = await db.scalar(
+        select(func.count()).where(
+            ProcessingJob.video_id == video.id, ProcessingJob.kind == JobKind.INGEST
+        )
+    )
+    video.status = VideoStatus.UPLOADED
+    video.error_message = None
+    await enqueue_ingest(db, video, {"retry": int(previous or 0)})
+    await db.commit()
+    await db.refresh(video)
+    return await video_out(db, storage, video)
 
 
 @router.get("/{video_id}/playback", response_model=PlaybackUrl, operation_id="getPlaybackUrl")
