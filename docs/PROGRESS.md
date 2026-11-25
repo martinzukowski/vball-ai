@@ -149,6 +149,18 @@ Also done (part 2):
   play-area editor) → owner labels this match → dataset builder + eval harness → learned
   rally model (frozen video embeddings + temporal model) → gated auto-retraining.
 
+### Reference labels from Balltime (2026-11-25)
+- Owner's choice (personal project): use Balltime's rally cutting for the sample match as the
+  reference. Balltime only exports its condensed rally video (10:58); `ml/eval/align_reference_cut.py`
+  aligns that cut to the original by frame fingerprints: all 47 rallies matched in order
+  (similarity 0.98-1.00), about +/-1 s (list times are whole seconds).
+- Stored as a `rally_label_sets` row (source `reference:balltime`) and shown as the match's
+  active rally list (pipeline `reference-import-1`). Not hand-verified by the owner.
+- **Baseline, heuristic-v1 vs this reference:** F1 0.40 at tIoU>=0.5 (19/47), 0.21 at >=0.7;
+  median start error 0.8 s, end error 4.1 s (ends late). This is the bar the learned model must beat.
+- Next: learned rally model (frozen pretrained frame embeddings + audio -> temporal model),
+  trained/evaluated with held-out time blocks of this match until more matches exist.
+
 ## Decisions to remember
 
 - **Storage budget.** Originals from phones are large (≈4–8 GB per hour at 1080p). Plan for M4:
