@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -78,7 +78,11 @@ def _crop_box(
 
 
 def video_embeddings(
-    video: Path, play_area: Sequence[Sequence[float]] | None, batch: int = 64
+    video: Path,
+    play_area: Sequence[Sequence[float]] | None,
+    batch: int = 64,
+    on_progress: Callable[[float], None] | None = None,
+    expected_steps: int | None = None,
 ) -> F32:
     width, height = displayed_size(video)
     x, y, cw, ch = _crop_box(play_area, width, height)
@@ -119,6 +123,8 @@ def video_embeddings(
             t = (t - mean) / std
             cls = model(pixel_values=t).last_hidden_state[:, 0]
             out.append(cls.numpy().astype(np.float32))
+            if on_progress and expected_steps:
+                on_progress(min(1.0, sum(len(o) for o in out) / expected_steps))
     proc.wait()
     return np.concatenate(out)
 
@@ -157,14 +163,20 @@ def audio_bands(video: Path, n_steps: int) -> F32:
     return feats
 
 
-def extract(video: Path, play_area: Sequence[Sequence[float]] | None, cache_dir: Path) -> F32:
+def extract(
+    video: Path,
+    play_area: Sequence[Sequence[float]] | None,
+    cache_dir: Path,
+    on_progress: Callable[[float], None] | None = None,
+    expected_steps: int | None = None,
+) -> F32:
     """[n_steps, 384 + 32] features, cached."""
     st = video.stat()
     key = f"{video.stem[:40]}-{st.st_size}-{int(st.st_mtime)}-{EXTRACTOR_VERSION}"
     cache = cache_dir / f"{key}.npz"
     if cache.exists():
         return np.load(cache)["x"]
-    vid = video_embeddings(video, play_area)
+    vid = video_embeddings(video, play_area, on_progress=on_progress, expected_steps=expected_steps)
     aud = audio_bands(video, len(vid))
     x = np.concatenate([vid, aud], axis=1).astype(np.float32)
     cache_dir.mkdir(parents=True, exist_ok=True)

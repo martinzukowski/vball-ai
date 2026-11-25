@@ -15,6 +15,16 @@ type Tab = "all" | "longest" | "starred";
 
 const POLL_MS = 4000;
 
+function describeDetector(detector: string): string {
+  if (detector.startsWith("learned:")) {
+    return `Detected by the learned rally model (version ${detector.slice(8)}).`;
+  }
+  if (detector.startsWith("reference:")) {
+    return `Rallies imported from ${detector.slice(10)} as a reference.`;
+  }
+  return `Detected by ${detector} (rules-based; motion and whistle cues).`;
+}
+
 function clock(s: number): string {
   return formatDuration(s);
 }
@@ -188,7 +198,7 @@ export function VideoPlayer() {
           )}
           {data?.analysis && (
             <p className="mt-2 text-xs text-zinc-500">
-              Detected by {data.analysis.detector} (rules-based; motion and whistle cues).
+              {describeDetector(data.analysis.detector)}
               {!data.analysis.used_play_area &&
                 " No play area marked: motion is measured on the whole frame, so people walking past the camera can cause mistakes."}
               {data.analysis.camera_moves.length > 0 &&

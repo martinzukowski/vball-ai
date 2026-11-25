@@ -292,7 +292,7 @@ def fake_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
 
     import vball_ml.features as feats
 
-    def fake_extract(video: Any, play_area: Any, cache_dir: Any) -> Any:
+    def fake_extract(video: Any, play_area: Any, cache_dir: Any, **_: Any) -> Any:
         n = int(probe(video).duration_s / 0.2)
         x = np.zeros((n, 416), np.float32)
         x[: n // 2, 0] = 3.0  # first half looks like "rally" to the test model

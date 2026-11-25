@@ -64,13 +64,19 @@ def load_model(mv: ModelVersion, storage: ObjectStorage, settings: Settings) -> 
 
 
 def learned_rallies(
-    ctx: JobContext, proxy: Path, play_area: Any, bundle: Any, work: Path
+    ctx: JobContext, proxy: Path, play_area: Any, bundle: Any, work: Path, duration: float
 ) -> list[dict[str, Any]]:
     from vball_ml.features import extract
     from vball_ml.rally_model import STEP, decode
 
     with ctx.stage("embeddings"):
-        x = extract(proxy, play_area, work / "features")
+        x = extract(
+            proxy,
+            play_area,
+            work / "features",
+            on_progress=lambda p: ctx.progress(0.05 + 0.8 * p),
+            expected_steps=int(duration / STEP) + 1,
+        )
     ctx.progress(0.85)
     with ctx.stage("model"):
         prob = bundle.predict(x)
@@ -114,7 +120,7 @@ def run_analyze(ctx: JobContext, settings: Settings, storage: ObjectStorage) -> 
         if mv is not None:
             try:
                 learned = learned_rallies(
-                    ctx, proxy, play_area, load_model(mv, storage, settings), work
+                    ctx, proxy, play_area, load_model(mv, storage, settings), work, duration
                 )
             except Exception as exc:  # keep the user's video usable: fall back to the heuristic
                 fallback_reason = f"learned model failed: {type(exc).__name__}"
