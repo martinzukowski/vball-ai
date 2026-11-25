@@ -24,8 +24,8 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M3 Direct uploads to object storage | Done locally | Needs Cloudflare R2 account for production |
 | M4 Job system + ingest worker | Done locally | Web progress UI not yet seen while signed in |
 | M5 Heuristic rally detection in worker | Done locally | Play-area editor UI comes in M6 |
-| M6 Review/correction web UI | In progress | Edits + review API done; editing UI next |
-| M7 Server-side highlights | | |
+| M6 Review/correction web UI | Done locally | Trim/add/delete, mark reviewed, play-area editor |
+| M7 Server-side highlights | Next | |
 | M8 Deployment (Vercel, Modal, Supabase, R2) | | |
 
 ## Log
@@ -184,6 +184,16 @@ Also done (part 2):
   the local stack only; the cloud registry starts empty at deployment).
 - Promotion gate today is manual (beats heuristic in held-out CV). Automated retrain + gate
   (only promote if better on unseen matches) comes once there is more than one labelled match.
+
+### M6 — Editing screen (2026-11-25)
+- `apps/web/src/app/videos/[id]/edit-tools.tsx`: for the selected rally, Start/End <- current
+  time, +/-0.5 s nudges, delete (confirm); add a rally around the current time; Mark reviewed
+  (saves a label set); shows when last reviewed. `play-area-editor.tsx`: draggable polygon over
+  the paused video (letterbox-aware), Save & re-detect / Cancel / Reset.
+- Verified in the browser while signed in: nudged rally #1's end and restored it (edits
+  recorded, effective rally back to 6.8-14.2 s), play-area editor showed the saved polygon
+  aligned with the court; cancelling queued no job. The learned model's rally #1 (0:07-0:14)
+  matches Balltime's ace rally.
 
 ## Decisions to remember
 
