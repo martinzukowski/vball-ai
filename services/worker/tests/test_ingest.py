@@ -348,3 +348,73 @@ def test_corrupt_model_falls_back_to_heuristic(
     finally:
         with engine.begin() as c:
             c.execute(text("UPDATE model_versions SET status='retired' WHERE status='production'"))
+
+
+def _queue_export(engine: Engine, video_id: uuid.UUID, clips: list[list[float]]) -> uuid.UUID:
+    import json
+
+    with engine.begin() as c:
+        owner = c.execute(
+            text("SELECT owner_id FROM videos WHERE id=:v"), {"v": video_id}
+        ).scalar_one()
+        ex = c.execute(
+            text(
+                "INSERT INTO highlight_exports (video_id, owner_id, clips, options) "
+                'VALUES (:v, :o, CAST(:c AS jsonb), \'{"name": "t"}\') RETURNING id'
+            ),
+            {"v": video_id, "o": owner, "c": json.dumps(clips)},
+        ).scalar_one()
+        job = jobs.enqueue(
+            c,
+            video_id=video_id,
+            owner_id=owner,
+            kind=JobKind.HIGHLIGHT,
+            pipeline_version="highlight-1",
+            params={"export_id": str(ex)},
+        )
+        c.execute(text("UPDATE highlight_exports SET job_id=:j WHERE id=:e"), {"j": job, "e": ex})
+    return ex
+
+
+def test_highlight_export_cuts_and_joins(
+    worker: Worker, engine: Engine, storage: ObjectStorage, tmp_path: Path
+) -> None:
+    v = uploaded_video(engine, storage, make_clip(tmp_path / "h.mov", seconds=8))
+    worker.run_until_idle()  # ingest + analyze
+    ex = _queue_export(engine, v["id"], [[1.0, 3.0], [4.0, 5.5]])
+    worker.run_until_idle()
+    with engine.connect() as c:
+        row = (
+            c.execute(text("SELECT * FROM highlight_exports WHERE id=:e"), {"e": ex})
+            .mappings()
+            .one()
+        )
+    assert row["status"] == "ready"
+    out = tmp_path / "out.mp4"
+    storage.download(row["output_key"], str(out))
+    info = probe(out)
+    assert abs(info.duration_s - 3.5) < 0.15  # sum of clips, within a couple of frames
+    assert info.audio_codec == "aac"
+    assert row["size_bytes"] == out.stat().st_size
+
+
+def test_highlight_failure_marks_export_failed(
+    worker: Worker, engine: Engine, storage: ObjectStorage, tmp_path: Path
+) -> None:
+    v = uploaded_video(engine, storage, make_clip(tmp_path / "f.mov", seconds=4))
+    worker.run_until_idle()
+    with engine.begin() as c:  # proxy disappears -> storage error -> retries -> fails
+        key = c.execute(
+            text("SELECT proxy_key FROM videos WHERE id=:v"), {"v": v["id"]}
+        ).scalar_one()
+    storage.delete(key)
+    ex = _queue_export(engine, v["id"], [[0.5, 1.5]])
+    for _ in range(4):
+        with engine.begin() as c:
+            c.execute(text("UPDATE processing_jobs SET run_after=now() WHERE kind='highlight'"))
+        worker.run_until_idle()
+    with engine.connect() as c:
+        status = c.execute(
+            text("SELECT status FROM highlight_exports WHERE id=:e"), {"e": ex}
+        ).scalar_one()
+    assert status == "failed"

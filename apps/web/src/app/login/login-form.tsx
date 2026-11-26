@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { googleSignInEnabled } from "@/lib/env";
@@ -16,14 +16,32 @@ export function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") ?? "/account";
   const linkError = params.get("error") === "link";
+  const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [usePassword, setUsePassword] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   const callbackUrl = () =>
     `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
+  async function signInWithPassword() {
+    setStatus({ kind: "sending" });
+    const { error } = await createSupabaseBrowserClient().auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) {
+      setStatus({ kind: "error", message: error.message });
+      return;
+    }
+    router.replace(next.startsWith("/") && !next.startsWith("//") ? next : "/account");
+    router.refresh();
+  }
+
   async function sendLink(e: FormEvent) {
     e.preventDefault();
+    if (usePassword) return signInWithPassword();
     setStatus({ kind: "sending" });
     const { error } = await createSupabaseBrowserClient().auth.signInWithOtp({
       email,
@@ -70,12 +88,44 @@ export function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
           className="h-12 rounded-lg border border-zinc-300 bg-white px-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
         />
+        {usePassword && (
+          <>
+            <label htmlFor="password" className="text-sm font-medium">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-12 rounded-lg border border-zinc-300 bg-white px-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+            />
+          </>
+        )}
         <button
           type="submit"
           disabled={status.kind === "sending"}
           className="h-12 rounded-lg bg-zinc-900 font-medium text-white disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
         >
-          {status.kind === "sending" ? "Sending…" : "Email me a sign-in link"}
+          {status.kind === "sending"
+            ? usePassword
+              ? "Signing in…"
+              : "Sending…"
+            : usePassword
+              ? "Sign in"
+              : "Email me a sign-in link"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setUsePassword((v) => !v);
+            setStatus({ kind: "idle" });
+          }}
+          className="text-sm text-zinc-500 underline"
+        >
+          {usePassword ? "Email me a link instead" : "Sign in with a password instead"}
         </button>
       </form>
       {googleSignInEnabled() && (

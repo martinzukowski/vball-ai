@@ -24,6 +24,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/highlights/{export_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Export */
+        delete: operations["deleteHighlightExport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -127,6 +144,24 @@ export interface paths {
          * @description Re-run rally detection, e.g. with a different sensitivity (-5 fewer .. 5 more).
          */
         post: operations["analyzeVideo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/videos/{video_id}/highlights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Exports */
+        get: operations["listHighlightExports"];
+        put?: never;
+        /** Create Export */
+        post: operations["createHighlightExport"];
         delete?: never;
         options?: never;
         head?: never;
@@ -346,6 +381,21 @@ export interface components {
             /** Ok */
             ok: boolean;
         };
+        /** CreateExport */
+        CreateExport: {
+            /**
+             * Name
+             * @default highlights
+             */
+            name: string;
+            /**
+             * Padding S
+             * @default 0.5
+             */
+            padding_s: number;
+            /** Rally Ids */
+            rally_ids: string[];
+        };
         /** CreateUpload */
         CreateUpload: {
             /**
@@ -358,6 +408,46 @@ export interface components {
             /** Size Bytes */
             size_bytes: number;
         };
+        /** ExportOut */
+        ExportOut: {
+            /** Clip Count */
+            clip_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Download Url */
+            download_url: string | null;
+            /** Duration S */
+            duration_s: number;
+            /** Error Message */
+            error_message: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Progress */
+            progress: number;
+            /** Size Bytes */
+            size_bytes: number | null;
+            status: components["schemas"]["ExportStatus"];
+            /**
+             * Video Id
+             * Format: uuid
+             */
+            video_id: string;
+        };
+        /**
+         * ExportStatus
+         * @enum {string}
+         */
+        ExportStatus: "pending" | "ready" | "failed" | "expired";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -654,6 +744,35 @@ export interface operations {
             };
         };
     };
+    deleteHighlightExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getMe: {
         parameters: {
             query?: never;
@@ -838,6 +957,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RalliesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listHighlightExports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createHighlightExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateExport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportOut"];
                 };
             };
             /** @description Validation Error */

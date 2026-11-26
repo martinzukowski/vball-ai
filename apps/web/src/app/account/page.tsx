@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { ApiProfile } from "./api-profile";
+import { SetPassword } from "./set-password";
 
 export const metadata: Metadata = { title: "Account · VBall" };
 
@@ -36,6 +37,7 @@ async function SignedInUser() {
         Signed in as <b>{typeof claims.email === "string" ? claims.email : claims.sub}</b>
       </p>
       <ApiProfile />
+      <SetPassword />
       <form action="/auth/signout" method="post">
         <button
           type="submit"

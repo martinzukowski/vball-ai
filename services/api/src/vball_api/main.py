@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from vball_api.auth.jwt import JwksCache, TokenVerifier
-from vball_api.routers import health, me, videos
+from vball_api.routers import health, highlights, me, videos
 from vball_core import __version__
 from vball_core.db.session import create_engine, create_sessionmaker
 from vball_core.logging import configure_logging, get_logger
@@ -80,4 +80,5 @@ def create_app(
     app.include_router(health.router)
     app.include_router(me.router)
     app.include_router(videos.router)
+    app.include_router(highlights.router)
     return app

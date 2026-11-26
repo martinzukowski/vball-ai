@@ -9,6 +9,7 @@ import type { components } from "@/lib/api/schema";
 import { formatDuration } from "@/lib/format";
 
 import { EditTools } from "./edit-tools";
+import { HighlightsPanel } from "./highlights-panel";
 import { PlayAreaEditor } from "./play-area-editor";
 
 type Video = components["schemas"]["VideoOut"];
@@ -285,6 +286,14 @@ export function VideoPlayer() {
                 setAreaMode(true);
               }}
             />
+            <div className="mt-3">
+              <HighlightsPanel
+                videoId={id}
+                allIds={rallies.map((r) => r.id)}
+                starredIds={rallies.filter((r) => stars.has(r.id)).map((r) => r.id)}
+                baseName={video.filename}
+              />
+            </div>
             {editError && (
               <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">
                 {editError}

@@ -22,9 +22,10 @@ from sqlalchemy.orm import Session
 
 from vball_api.deps import CurrentUser, DbSession, ensure_owner
 from vball_core import jobs, pipelines
-from vball_core.db.enums import JobErrorCode, JobKind, JobState, VideoStatus
+from vball_core.db.enums import ExportStatus, JobErrorCode, JobKind, JobState, VideoStatus
 from vball_core.db.models import (
     AnalysisRun,
+    HighlightExport,
     ProcessingJob,
     Profile,
     Rally,
@@ -206,7 +207,12 @@ async def stored_bytes(db: DbSession) -> int:
     total = await db.scalar(
         select(func.coalesce(func.sum(per_video), 0)).where(Video.status != VideoStatus.DELETED)
     )
-    return int(total or 0)
+    exports = await db.scalar(
+        select(func.coalesce(func.sum(HighlightExport.size_bytes), 0)).where(
+            HighlightExport.status == ExportStatus.READY
+        )
+    )
+    return int(total or 0) + int(exports or 0)
 
 
 async def latest_jobs(db: DbSession, video_ids: list[uuid.UUID]) -> dict[uuid.UUID, ProcessingJob]:

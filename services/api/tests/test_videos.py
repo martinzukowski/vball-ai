@@ -385,3 +385,11 @@ async def test_edit_and_review_rallies(api: httpx.AsyncClient, migrated_url: str
         engine.dispose()
     assert labels.n_rallies == 2
     assert labels.rallies[0]["predicted_end_t"] == 20  # what the model said, kept for training
+
+
+def test_merge_clips_pads_clamps_and_merges() -> None:
+    from vball_api.routers.highlights import merge_clips, safe_filename
+
+    assert merge_clips([(10, 20), (20.5, 30), (50, 55)], 0.5, 52) == [[9.5, 30.5], [49.5, 52.0]]
+    assert merge_clips([(0.2, 3)], 1, 100) == [[0.0, 4.0]]
+    assert safe_filename('a/b:"c" final') == "abc final.mp4"

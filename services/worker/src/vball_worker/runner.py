@@ -16,20 +16,25 @@ from botocore.exceptions import BotoCoreError, ClientError
 from sqlalchemy import Engine, and_, create_engine, exists, update
 
 from vball_core import jobs
-from vball_core.db.enums import JobErrorCode, JobKind, JobState, VideoStatus
-from vball_core.db.models import ProcessingJob, Video
+from vball_core.db.enums import ExportStatus, JobErrorCode, JobKind, JobState, VideoStatus
+from vball_core.db.models import HighlightExport, ProcessingJob, Video
 from vball_core.logging import configure_logging, get_logger
 from vball_core.settings import Settings
 from vball_core.storage import ObjectStorage
 from vball_worker.analyze import run_analyze
 from vball_worker.context import JobContext, JobResult
+from vball_worker.highlight import run_highlight
 from vball_worker.ingest import run_ingest
 from vball_worker.media import InvalidMediaError, MediaToolError
 
 log = get_logger("vball_worker")
 
 Handler = Callable[[JobContext, Settings, ObjectStorage], JobResult]
-HANDLERS: dict[JobKind, Handler] = {JobKind.INGEST: run_ingest, JobKind.ANALYZE: run_analyze}
+HANDLERS: dict[JobKind, Handler] = {
+    JobKind.INGEST: run_ingest,
+    JobKind.ANALYZE: run_analyze,
+    JobKind.HIGHLIGHT: run_highlight,
+}
 HEARTBEAT_INTERVAL_S = 20.0
 
 
@@ -132,6 +137,12 @@ class Worker:
         try:
             with self.engine.begin() as conn:
                 state = jobs.fail(conn, job.id, self.worker_id, code, message, retryable=retryable)
+                if state is JobState.FAILED and job.kind is JobKind.HIGHLIGHT:
+                    conn.execute(
+                        update(HighlightExport)
+                        .where(HighlightExport.job_id == job.id)
+                        .values(status=ExportStatus.FAILED)
+                    )
                 if state is JobState.FAILED and job.kind is JobKind.INGEST:
                     conn.execute(
                         update(Video)

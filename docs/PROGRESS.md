@@ -25,8 +25,8 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M4 Job system + ingest worker | Done locally | Web progress UI not yet seen while signed in |
 | M5 Heuristic rally detection in worker | Done locally | Play-area editor UI comes in M6 |
 | M6 Review/correction web UI | Done locally | Trim/add/delete, mark reviewed, play-area editor |
-| M7 Server-side highlights | Next | |
-| M8 Deployment (Vercel, Modal, Supabase, R2) | | |
+| M7 Server-side highlights | Done locally | Export all/starred rallies as one MP4 |
+| M8 Deployment (Vercel, Modal, Supabase, R2) | Next | Needs owner's accounts |
 
 ## Log
 
@@ -194,6 +194,20 @@ Also done (part 2):
   recorded, effective rally back to 6.8-14.2 s), play-area editor showed the saved polygon
   aligned with the court; cancelling queued no job. The learned model's rally #1 (0:07-0:14)
   matches Balltime's ace rally.
+
+### M7 — Highlight export (2026-11-26)
+- API (`routers/highlights.py`): `POST /videos/{id}/highlights {rally_ids, padding_s, name}`
+  freezes clip times (effective rallies, padded 0.5 s, merged when they touch),
+  `GET /videos/{id}/highlights` (status, progress, presigned download with a friendly file
+  name), `DELETE /highlights/{id}`. Exports expire after 30 days and count toward the storage cap.
+- Worker (`highlight.py`, job kind `highlight`): cuts each clip from the 720p proxy with
+  input seeking + re-encode (frame-accurate, CRF 22), joins with the concat demuxer, uploads,
+  marks ready atomically; a job that fails for good marks the export failed.
+- Web: "Highlight videos" panel on the match page (export all / starred, progress, download, delete).
+- Verified: tests (cut + join duration = sum of clips, failure path); real export of the
+  sample match: 47 clips, 9.9 min, 112 MB, cut 165 s + join 2 s on the dev laptop.
+- Sign-in: Supabase's built-in mailer hit its hourly limit after repeated re-logins. Added
+  password sign-in (toggle on /login) and "Set a password" on /account.
 
 ## Decisions to remember
 
