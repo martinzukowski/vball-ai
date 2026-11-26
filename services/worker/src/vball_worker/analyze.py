@@ -78,6 +78,10 @@ def learned_rallies(
             expected_steps=int(duration / STEP) + 1,
         )
     ctx.progress(0.85)
+    # Keep the features so this video can become training data without re-extracting.
+    import numpy as np
+
+    np.savez_compressed(work / "learned_features.npz", x=x)
     with ctx.stage("model"):
         prob = bundle.predict(x)
         spans = decode(prob)
@@ -107,6 +111,7 @@ def run_analyze(ctx: JobContext, settings: Settings, storage: ObjectStorage) -> 
     run_id = uuid.uuid4()
 
     mv = production_rally_model(ctx)
+    learned_features_key: str | None = None
     learned: list[dict[str, Any]] | None = None
     fallback_reason: str | None = None if mv else "no production rally model"
     feats = None
@@ -122,6 +127,12 @@ def run_analyze(ctx: JobContext, settings: Settings, storage: ObjectStorage) -> 
                 learned = learned_rallies(
                     ctx, proxy, play_area, load_model(mv, storage, settings), work, duration
                 )
+                feat_file = work / "learned_features.npz"
+                if feat_file.exists():
+                    learned_features_key = (
+                        f"artifacts/{video.owner_id}/{video.id}/{run_id}/learned_features.npz"
+                    )
+                    storage.upload(str(feat_file), learned_features_key, "application/octet-stream")
             except Exception as exc:  # keep the user's video usable: fall back to the heuristic
                 fallback_reason = f"learned model failed: {type(exc).__name__}"
                 log.error("learned_model_failed", error=type(exc).__name__, detail=str(exc)[:300])
@@ -154,6 +165,7 @@ def run_analyze(ctx: JobContext, settings: Settings, storage: ObjectStorage) -> 
             "play_area": play_area,
             "mode": "learned",
             "camera_moves": [],
+            "learned_features_key": learned_features_key,
         }
         cams = [0.0]
     else:

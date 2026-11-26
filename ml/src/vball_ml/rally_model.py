@@ -47,6 +47,13 @@ def labels_for(n_steps: int, rallies: Sequence[tuple[float, float]]) -> F32:
     return y
 
 
+def video_norm(x: F32) -> F32:
+    """Standardise a video's features by its own statistics. Removes per-venue offsets
+    (lighting, colour, camera, audio level); measured to be what makes the model carry over to
+    gyms it hasn't seen (cross-gym F1 0.00/0.14 -> 0.59/0.73 on the first two matches)."""
+    return ((x - x.mean(0)) / (x.std(0) + 1e-6)).astype(np.float32)
+
+
 @dataclass
 class Normaliser:
     mean: F32
@@ -140,6 +147,8 @@ class Bundle:
     meta: dict[str, object]
 
     def predict(self, x: F32) -> F32:
+        if self.meta.get("input_norm") == "per_video":
+            x = video_norm(x)
         return np.mean([predict(n, self.norm, x) for n in self.nets], axis=0).astype(np.float32)
 
 

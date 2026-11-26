@@ -26,7 +26,7 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M5 Heuristic rally detection in worker | Done locally | Play-area editor UI comes in M6 |
 | M6 Review/correction web UI | Done locally | Trim/add/delete, mark reviewed, play-area editor |
 | M7 Server-side highlights | Done locally | Export all/starred rallies as one MP4 |
-| M8 Deployment (Vercel, Modal, Supabase, R2) | Next | Needs owner's accounts |
+| M8 Deployment (Vercel, Modal, Supabase, storage) | Next | Owner: no card -> Backblaze B2 instead of R2; Vercel account exists (martinzukowski04@gmail.com) |
 
 ## Log
 
@@ -208,6 +208,48 @@ Also done (part 2):
   sample match: 47 clips, 9.9 min, 112 MB, cut 165 s + join 2 s on the dev laptop.
 - Sign-in: Supabase's built-in mailer hit its hourly limit after repeated re-logins. Added
   password sign-in (toggle on /login) and "Set a password" on /account.
+
+### Generalisation work (2026-11-26) — RESUME HERE
+**State when handed off:** all code committed; the gated retrain (`2026-11-26.1`) was stopped
+before it registered anything, so local production is still `2026-11-25.1` (trained on TFC only).
+
+Second reference match: HJSC "Team Adam vs Big Chillin G2 S1" (16:13, different gym, no play
+area marked). Balltime list read from their rally panel, cut aligned (45 rallies, all in order,
+match >= 0.975). Reference files now live in `ml/references/` (`*.balltime.json` = rallies in
+original-video seconds; `*_cut_times.txt` = Balltime's condensed-timeline list).
+Source videos are NOT in git (owner's Downloads folder on the work laptop):
+`Nov 15, 2026 TFC Asians Tourney ... [EiwsJWsGqwA].mp4` (+ ` (1).mp4` Balltime cut) and
+`Oct 29, 2026 Team Adam vs Big Chillin at HJSC ... [3LDBrZ2Peeo].mp4` (+ ` balltime].mp4`).
+
+Results (F1@tIoU0.5 vs Balltime, each test gym unseen in training):
+| Recipe | TFC->HJSC | HJSC->TFC |
+|---|---|---|
+| production 2026-11-25.1 (TFC only) on HJSC | 0.00 (0 predicted; probs ~0) | — |
+| global feature normalisation | 0.00 | 0.14 |
+| **per-video feature normalisation** (adopted in code) | **0.59** (start/end err 1.0/1.2 s) | **0.73** (1.0/1.0 s) |
+
+Code added: `ml/src/vball_ml/matches.py` (`score` / `import` / `retrain` with leave-one-match-
+out and a promotion gate; production model records `trained_on`), `video_norm()` in
+`rally_model.py` (bundles with `meta.input_norm == "per_video"` apply it at predict time), worker
+saves `learned_features.npz` per analysis (`params.learned_features_key`) so retraining doesn't
+re-extract.
+
+**Owner's goal: ~95% F1 vs Balltime on unseen gyms.** Planned next experiments (score every one
+leave-one-gym-out; log results here; avoid brute-force tuning on just two videos):
+1. Consistent input: TFC features used a play-area crop, HJSC full frame. Re-extract TFC full
+   frame (or always full frame) and compare.
+2. Motion cues: add embedding differences (x_t - x_{t-1}) / short-window std.
+3. Augmentation: feature noise, random temporal scaling, audio gain jitter.
+4. Decoding robust to calibration shift: per-video adaptive threshold (e.g. quantile/Otsu)
+   vs fixed 0.5 — generic, not fitted per video.
+5. Capacity/regularisation: width, dropout, epochs.
+Then run `python -m vball_ml.matches retrain --version <v>` (needs the local stack + both
+videos' features in storage) and rebuild the worker. A third match from another gym is needed
+to confirm any score near 95% isn't selection luck.
+
+New-PC notes: local Docker data (database, storage, models, features) does NOT transfer. To
+continue experiments on another PC: copy the 4 match videos, start the stack, re-ingest, and
+features are recomputed (~15 min/match on CPU), or just continue other milestones (M8 deploy).
 
 ## Decisions to remember
 

@@ -1,0 +1,407 @@
+[
+ {
+  "rally": 1,
+  "cut_start": 0,
+  "cut_end": 11,
+  "start": 12.0,
+  "end": 23.0,
+  "match": 0.999,
+  "runner_up": 0.956
+ },
+ {
+  "rally": 2,
+  "cut_start": 14,
+  "cut_end": 20,
+  "start": 33.0,
+  "end": 39.0,
+  "match": 0.998,
+  "runner_up": 0.967
+ },
+ {
+  "rally": 3,
+  "cut_start": 23,
+  "cut_end": 35,
+  "start": 49.0,
+  "end": 61.0,
+  "match": 0.998,
+  "runner_up": 0.957
+ },
+ {
+  "rally": 4,
+  "cut_start": 37,
+  "cut_end": 47,
+  "start": 70.0,
+  "end": 80.0,
+  "match": 0.999,
+  "runner_up": 0.972
+ },
+ {
+  "rally": 5,
+  "cut_start": 50,
+  "cut_end": 60,
+  "start": 96.0,
+  "end": 106.0,
+  "match": 0.983,
+  "runner_up": 0.929
+ },
+ {
+  "rally": 6,
+  "cut_start": 63,
+  "cut_end": 74,
+  "start": 117.0,
+  "end": 128.0,
+  "match": 0.998,
+  "runner_up": 0.963
+ },
+ {
+  "rally": 7,
+  "cut_start": 77,
+  "cut_end": 95,
+  "start": 143.0,
+  "end": 161.0,
+  "match": 0.997,
+  "runner_up": 0.962
+ },
+ {
+  "rally": 8,
+  "cut_start": 97,
+  "cut_end": 122,
+  "start": 171.0,
+  "end": 196.0,
+  "match": 0.998,
+  "runner_up": 0.963
+ },
+ {
+  "rally": 9,
+  "cut_start": 125,
+  "cut_end": 134,
+  "start": 204.8,
+  "end": 213.8,
+  "match": 0.999,
+  "runner_up": 0.982
+ },
+ {
+  "rally": 10,
+  "cut_start": 137,
+  "cut_end": 156,
+  "start": 223.8,
+  "end": 242.8,
+  "match": 0.998,
+  "runner_up": 0.967
+ },
+ {
+  "rally": 11,
+  "cut_start": 158,
+  "cut_end": 165,
+  "start": 250.8,
+  "end": 257.8,
+  "match": 0.999,
+  "runner_up": 0.964
+ },
+ {
+  "rally": 12,
+  "cut_start": 167,
+  "cut_end": 182,
+  "start": 261.8,
+  "end": 276.8,
+  "match": 0.997,
+  "runner_up": 0.958
+ },
+ {
+  "rally": 13,
+  "cut_start": 184,
+  "cut_end": 194,
+  "start": 285.8,
+  "end": 295.8,
+  "match": 0.994,
+  "runner_up": 0.951
+ },
+ {
+  "rally": 14,
+  "cut_start": 197,
+  "cut_end": 207,
+  "start": 303.8,
+  "end": 313.8,
+  "match": 0.999,
+  "runner_up": 0.955
+ },
+ {
+  "rally": 15,
+  "cut_start": 210,
+  "cut_end": 225,
+  "start": 324.8,
+  "end": 339.8,
+  "match": 1.0,
+  "runner_up": 0.944
+ },
+ {
+  "rally": 16,
+  "cut_start": 227,
+  "cut_end": 235,
+  "start": 346.8,
+  "end": 354.8,
+  "match": 0.999,
+  "runner_up": 0.952
+ },
+ {
+  "rally": 17,
+  "cut_start": 238,
+  "cut_end": 252,
+  "start": 363.8,
+  "end": 377.8,
+  "match": 0.999,
+  "runner_up": 0.95
+ },
+ {
+  "rally": 18,
+  "cut_start": 254,
+  "cut_end": 264,
+  "start": 384.8,
+  "end": 394.8,
+  "match": 0.999,
+  "runner_up": 0.925
+ },
+ {
+  "rally": 19,
+  "cut_start": 267,
+  "cut_end": 280,
+  "start": 408.8,
+  "end": 421.8,
+  "match": 1.0,
+  "runner_up": 0.948
+ },
+ {
+  "rally": 20,
+  "cut_start": 283,
+  "cut_end": 293,
+  "start": 431.8,
+  "end": 441.8,
+  "match": 0.975,
+  "runner_up": 0.925
+ },
+ {
+  "rally": 21,
+  "cut_start": 296,
+  "cut_end": 302,
+  "start": 447.8,
+  "end": 453.8,
+  "match": 0.999,
+  "runner_up": 0.967
+ },
+ {
+  "rally": 22,
+  "cut_start": 305,
+  "cut_end": 315,
+  "start": 463.8,
+  "end": 473.8,
+  "match": 0.992,
+  "runner_up": 0.958
+ },
+ {
+  "rally": 23,
+  "cut_start": 317,
+  "cut_end": 339,
+  "start": 482.8,
+  "end": 504.8,
+  "match": 0.991,
+  "runner_up": 0.946
+ },
+ {
+  "rally": 24,
+  "cut_start": 341,
+  "cut_end": 351,
+  "start": 520.8,
+  "end": 530.8,
+  "match": 0.981,
+  "runner_up": 0.963
+ },
+ {
+  "rally": 25,
+  "cut_start": 353,
+  "cut_end": 363,
+  "start": 541.6,
+  "end": 551.6,
+  "match": 0.999,
+  "runner_up": 0.976
+ },
+ {
+  "rally": 26,
+  "cut_start": 365,
+  "cut_end": 375,
+  "start": 560.6,
+  "end": 570.6,
+  "match": 0.998,
+  "runner_up": 0.974
+ },
+ {
+  "rally": 27,
+  "cut_start": 378,
+  "cut_end": 399,
+  "start": 578.6,
+  "end": 599.6,
+  "match": 0.998,
+  "runner_up": 0.963
+ },
+ {
+  "rally": 28,
+  "cut_start": 402,
+  "cut_end": 413,
+  "start": 612.6,
+  "end": 623.6,
+  "match": 0.982,
+  "runner_up": 0.936
+ },
+ {
+  "rally": 29,
+  "cut_start": 416,
+  "cut_end": 425,
+  "start": 632.6,
+  "end": 641.6,
+  "match": 0.98,
+  "runner_up": 0.945
+ },
+ {
+  "rally": 30,
+  "cut_start": 427,
+  "cut_end": 440,
+  "start": 649.6,
+  "end": 662.6,
+  "match": 0.996,
+  "runner_up": 0.933
+ },
+ {
+  "rally": 31,
+  "cut_start": 443,
+  "cut_end": 461,
+  "start": 670.6,
+  "end": 688.6,
+  "match": 0.999,
+  "runner_up": 0.952
+ },
+ {
+  "rally": 32,
+  "cut_start": 463,
+  "cut_end": 477,
+  "start": 694.6,
+  "end": 708.6,
+  "match": 0.999,
+  "runner_up": 0.929
+ },
+ {
+  "rally": 33,
+  "cut_start": 480,
+  "cut_end": 491,
+  "start": 722.6,
+  "end": 733.6,
+  "match": 1.0,
+  "runner_up": 0.975
+ },
+ {
+  "rally": 34,
+  "cut_start": 493,
+  "cut_end": 504,
+  "start": 740.6,
+  "end": 751.6,
+  "match": 0.998,
+  "runner_up": 0.949
+ },
+ {
+  "rally": 35,
+  "cut_start": 506,
+  "cut_end": 513,
+  "start": 761.6,
+  "end": 768.6,
+  "match": 0.997,
+  "runner_up": 0.946
+ },
+ {
+  "rally": 36,
+  "cut_start": 515,
+  "cut_end": 525,
+  "start": 778.6,
+  "end": 788.6,
+  "match": 0.998,
+  "runner_up": 0.934
+ },
+ {
+  "rally": 37,
+  "cut_start": 527,
+  "cut_end": 537,
+  "start": 797.6,
+  "end": 807.6,
+  "match": 0.999,
+  "runner_up": 0.936
+ },
+ {
+  "rally": 38,
+  "cut_start": 539,
+  "cut_end": 551,
+  "start": 818.6,
+  "end": 830.6,
+  "match": 0.997,
+  "runner_up": 0.951
+ },
+ {
+  "rally": 39,
+  "cut_start": 553,
+  "cut_end": 563,
+  "start": 836.6,
+  "end": 846.6,
+  "match": 0.991,
+  "runner_up": 0.965
+ },
+ {
+  "rally": 40,
+  "cut_start": 566,
+  "cut_end": 573,
+  "start": 852.6,
+  "end": 859.6,
+  "match": 0.989,
+  "runner_up": 0.965
+ },
+ {
+  "rally": 41,
+  "cut_start": 576,
+  "cut_end": 588,
+  "start": 868.4,
+  "end": 880.4,
+  "match": 0.993,
+  "runner_up": 0.954
+ },
+ {
+  "rally": 42,
+  "cut_start": 591,
+  "cut_end": 602,
+  "start": 889.4,
+  "end": 900.4,
+  "match": 0.993,
+  "runner_up": 0.955
+ },
+ {
+  "rally": 43,
+  "cut_start": 604,
+  "cut_end": 614,
+  "start": 910.4,
+  "end": 920.4,
+  "match": 0.998,
+  "runner_up": 0.957
+ },
+ {
+  "rally": 44,
+  "cut_start": 616,
+  "cut_end": 627,
+  "start": 925.4,
+  "end": 936.4,
+  "match": 0.999,
+  "runner_up": 0.956
+ },
+ {
+  "rally": 45,
+  "cut_start": 629,
+  "cut_end": 648,
+  "start": 946.4,
+  "end": 965.4,
+  "match": 0.998,
+  "runner_up": 0.948
+ }
+]
