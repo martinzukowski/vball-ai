@@ -19,9 +19,16 @@ F32 = npt.NDArray[np.float32]
 
 
 class TemporalNet(nn.Module):
-    def __init__(self, n_in: int, width: int = 64, dilations: Sequence[int] = (1, 2, 4, 8, 16)):
+    def __init__(
+        self,
+        n_in: int,
+        width: int = 64,
+        dilations: Sequence[int] = (1, 2, 4, 8, 16),
+        in_dropout: float = 0.2,
+    ):
         super().__init__()
-        self.inp = nn.Sequential(nn.Dropout(0.2), nn.Linear(n_in, width), nn.GELU())
+        self.width = width
+        self.inp = nn.Sequential(nn.Dropout(in_dropout), nn.Linear(n_in, width), nn.GELU())
         self.blocks = nn.ModuleList(
             nn.Sequential(
                 nn.Conv1d(width, width, 5, padding=2 * d, dilation=d),
@@ -75,6 +82,9 @@ def train(
     epochs: int = 250,
     crop: int = 600,
     seed: int = 0,
+    width: int = 64,
+    in_dropout: float = 0.2,
+    noise: float = 0.0,
 ) -> tuple[TemporalNet, Normaliser]:
     """Fit on the steps where ``mask`` is True (other steps are held out)."""
     torch.manual_seed(seed)
@@ -83,7 +93,7 @@ def train(
     xn = torch.from_numpy(norm(x))
     yt = torch.from_numpy(y)
     mt = torch.from_numpy(mask.astype(np.float32))
-    net = TemporalNet(x.shape[1])
+    net = TemporalNet(x.shape[1], width=width, in_dropout=in_dropout)
     opt = torch.optim.AdamW(net.parameters(), lr=1e-3, weight_decay=1e-2)
     pos = float(y[mask].mean())
     loss_fn = nn.BCEWithLogitsLoss(
@@ -99,7 +109,10 @@ def train(
             xb.append(xn[s : s + crop])
             yb.append(yt[s : s + crop])
             mb.append(mt[s : s + crop])
-        logits = net(torch.stack(xb))
+        batch = torch.stack(xb)
+        if noise > 0:  # feature noise: robustness to venue/camera differences
+            batch = batch + noise * torch.randn_like(batch)
+        logits = net(batch)
         loss = (loss_fn(logits, torch.stack(yb)) * torch.stack(mb)).sum() / torch.stack(mb).sum()
         opt.zero_grad()
         loss.backward()
@@ -160,6 +173,7 @@ def save_bundle(path: str, bundle: Bundle) -> None:
             "mean": bundle.norm.mean,
             "std": bundle.norm.std,
             "states": [n.state_dict() for n in bundle.nets],
+            "width": bundle.nets[0].width,
             "meta": bundle.meta,
         },
         path,
@@ -172,7 +186,7 @@ def load_bundle(path: str) -> Bundle:
         raise ValueError("unsupported rally model format")
     nets = []
     for state in blob["states"]:
-        net = TemporalNet(blob["n_in"])
+        net = TemporalNet(blob["n_in"], width=int(blob.get("width", 64)))
         net.load_state_dict(state)
         net.eval()
         nets.append(net)
