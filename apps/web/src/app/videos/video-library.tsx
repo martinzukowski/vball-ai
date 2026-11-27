@@ -17,7 +17,7 @@ const TONE = {
   sky: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
   green: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
   red: "bg-red-100 text-red-900 dark:bg-red-950 dark:text-red-200",
-  grey: "bg-zinc-100 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300",
+  grey: "bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300",
 };
 
 const STATUS_LABEL: Record<Video["status"], { text: string; tone: string }> = {
@@ -101,12 +101,12 @@ export function VideoLibrary() {
           {error}
         </p>
       )}
-      {videos === null && !error && <p className="text-zinc-500">Loading videos…</p>}
+      {videos === null && !error && <p className="text-slate-500">Loading videos…</p>}
       {videos?.length === 0 && (
-        <p className="text-zinc-500">No videos yet. Upload a match to get started.</p>
+        <p className="text-slate-500">No videos yet. Upload a match to get started.</p>
       )}
       {videos && videos.length > 0 && (
-        <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
+        <ul className="flex flex-col divide-y divide-slate-200 dark:divide-slate-800">
           {videos.map((v) => (
             <VideoRow key={v.id} video={v} onDelete={() => remove(v)} onRetry={() => retry(v)} />
           ))}
@@ -129,7 +129,7 @@ function VideoRow({
   const job = v.processing;
   const pct = job ? Math.round(job.progress * 100) : 0;
   const thumb = (
-    <div className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-md bg-zinc-200 dark:bg-zinc-800">
+    <div className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-md bg-slate-200 dark:bg-slate-800">
       {v.poster_url && (
         // Presigned, short-lived URL from our storage; Next's image optimizer can't fetch it.
         // eslint-disable-next-line @next/next/no-img-element
@@ -154,16 +154,16 @@ function VideoRow({
         ) : (
           <p className="truncate font-medium">{v.filename}</p>
         )}
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-slate-500">
           {formatDate(v.created_at)} · {formatBytes(v.size_bytes)}
           {v.duration_s != null && ` · ${formatDuration(v.duration_s)}`}
         </p>
         {isProcessing(v) && (
           <div className="mt-1 flex items-center gap-2">
-            <div className="h-1.5 w-28 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+            <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
               <div className="h-full bg-sky-600 transition-[width]" style={{ width: `${pct}%` }} />
             </div>
-            <span className="text-xs text-zinc-500 tabular-nums">
+            <span className="text-xs text-slate-500 tabular-nums">
               {job?.state === "running"
                 ? `${STAGE_LABEL[job.stage ?? ""] ?? "Working"} · ${pct}%`
                 : job?.error_code === "transient"
@@ -185,7 +185,7 @@ function VideoRow({
         <button
           type="button"
           onClick={onRetry}
-          className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-900"
+          className="shrink-0 rounded-md px-2 py-1 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-900"
         >
           Retry
         </button>
@@ -194,7 +194,7 @@ function VideoRow({
         type="button"
         onClick={onDelete}
         aria-label={`Delete ${v.filename}`}
-        className="shrink-0 rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-red-700 dark:hover:bg-zinc-900"
+        className="shrink-0 rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-red-700 dark:hover:bg-slate-900"
       >
         Delete
       </button>
@@ -205,16 +205,16 @@ function VideoRow({
 function StorageBar({ usage }: { usage: Usage }) {
   const pct = Math.min(100, Math.round((usage.used_bytes / usage.cap_bytes) * 100));
   return (
-    <div className="flex flex-col gap-1 text-xs text-zinc-500">
+    <div className="flex flex-col gap-1 text-xs text-slate-500">
       <div className="flex justify-between">
         <span>Storage</span>
         <span className="tabular-nums">
           {formatBytes(usage.used_bytes)} of {formatBytes(usage.cap_bytes)} free-tier limit
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
         <div
-          className={`h-full ${pct > 85 ? "bg-red-600" : "bg-zinc-500"}`}
+          className={`h-full ${pct > 85 ? "bg-red-600" : "bg-slate-500"}`}
           style={{ width: `${pct}%` }}
         />
       </div>

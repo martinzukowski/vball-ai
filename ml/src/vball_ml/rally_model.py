@@ -127,18 +127,27 @@ def predict(net: TemporalNet, norm: Normaliser, x: F32) -> F32:
 
 
 def decode(
-    prob: F32, threshold: float = 0.5, min_gap_s: float = 1.0, min_len_s: float = 2.0
+    prob: F32,
+    threshold: float = 0.5,
+    min_gap_s: float = 1.0,
+    min_len_s: float = 2.0,
+    exit_threshold: float | None = None,
 ) -> list[tuple[float, float]]:
-    """Probabilities -> rally spans (seconds). Generic, not fitted per video."""
+    """Probabilities -> rally spans (seconds). Generic, not fitted per video.
+
+    With ``exit_threshold`` (hysteresis) a rally starts when the smoothed probability reaches
+    ``threshold`` but only ends when it drops below ``exit_threshold``, so a brief dip in the
+    middle of a long rally doesn't split it. Gaps shorter than ``min_gap_s`` are joined.
+    """
     k = 2
     smooth = np.convolve(prob, np.ones(2 * k + 1) / (2 * k + 1), mode="same")
-    on = smooth >= threshold
+    lo = threshold if exit_threshold is None else exit_threshold
     spans: list[list[float]] = []
-    i, n = 0, len(on)
+    i, n = 0, len(smooth)
     while i < n:
-        if on[i]:
+        if smooth[i] >= threshold:
             j = i
-            while j < n and on[j]:
+            while j < n and smooth[j] >= lo:
                 j += 1
             s, e = i * STEP, j * STEP
             if spans and s - spans[-1][1] < min_gap_s:

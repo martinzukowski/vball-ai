@@ -29,7 +29,7 @@ export function SetPassword() {
   }
 
   return (
-    <form onSubmit={save} className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+    <form onSubmit={save} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white shadow-sm p-3 dark:border-slate-800">
       <label htmlFor="new-password" className="text-sm font-medium">
         Set a password (optional)
       </label>
@@ -41,12 +41,12 @@ export function SetPassword() {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="h-10 flex-1 rounded-lg border border-zinc-300 bg-white px-3 dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-10 flex-1 rounded-lg border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-900"
         />
         <button
           type="submit"
           disabled={busy}
-          className="h-10 rounded-lg border border-zinc-300 px-3 text-sm font-medium disabled:opacity-50 dark:border-zinc-700"
+          className="h-10 rounded-lg border border-slate-300 px-3 text-sm font-medium disabled:opacity-50 dark:border-slate-700"
         >
           Save
         </button>
@@ -56,7 +56,7 @@ export function SetPassword() {
           {msg.text}
         </p>
       )}
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-slate-500">
         Lets you sign in without waiting for an email link.
       </p>
     </form>

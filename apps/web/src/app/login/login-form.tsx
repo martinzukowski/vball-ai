@@ -86,7 +86,7 @@ export function LoginForm() {
           inputMode="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="h-12 rounded-lg border border-zinc-300 bg-white px-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-12 rounded-lg border border-slate-300 bg-white px-3 text-base dark:border-slate-700 dark:bg-slate-900"
         />
         {usePassword && (
           <>
@@ -100,14 +100,14 @@ export function LoginForm() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-12 rounded-lg border border-zinc-300 bg-white px-3 text-base dark:border-zinc-700 dark:bg-zinc-900"
+              className="h-12 rounded-lg border border-slate-300 bg-white px-3 text-base dark:border-slate-700 dark:bg-slate-900"
             />
           </>
         )}
         <button
           type="submit"
           disabled={status.kind === "sending"}
-          className="h-12 rounded-lg bg-zinc-900 font-medium text-white disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+          className="h-12 rounded-lg bg-blue-600 font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
         >
           {status.kind === "sending"
             ? usePassword
@@ -123,7 +123,7 @@ export function LoginForm() {
             setUsePassword((v) => !v);
             setStatus({ kind: "idle" });
           }}
-          className="text-sm text-zinc-500 underline"
+          className="text-sm text-slate-500 underline"
         >
           {usePassword ? "Email me a link instead" : "Sign in with a password instead"}
         </button>
@@ -132,7 +132,7 @@ export function LoginForm() {
         <button
           type="button"
           onClick={signInWithGoogle}
-          className="h-12 rounded-lg border border-zinc-300 font-medium dark:border-zinc-700"
+          className="h-12 rounded-lg border border-slate-300 font-medium dark:border-slate-700"
         >
           Continue with Google
         </button>

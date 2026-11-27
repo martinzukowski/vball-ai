@@ -84,7 +84,7 @@ export function Uploader({ onUploaded }: { onUploaded: () => void }) {
 
   const busy = state.kind === "uploading";
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+    <section className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white shadow-sm p-4 dark:border-slate-800">
       <input
         ref={inputRef}
         type="file"
@@ -98,7 +98,7 @@ export function Uploader({ onUploaded }: { onUploaded: () => void }) {
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="h-12 rounded-lg bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+          className="h-12 rounded-lg bg-blue-600 font-semibold text-white hover:bg-blue-700"
         >
           Upload a match video
         </button>
@@ -119,7 +119,7 @@ export function Uploader({ onUploaded }: { onUploaded: () => void }) {
           file to resume.
         </p>
       )}
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-slate-500">
         MP4 or MOV. Large files upload in pieces and can resume if your connection drops. Wi-Fi
         recommended.
       </p>
@@ -145,7 +145,7 @@ function UploadProgress({
         <span className="shrink-0 tabular-nums">{pct}%</span>
       </div>
       <div
-        className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800"
+        className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
         role="progressbar"
         aria-valuenow={pct}
         aria-valuemin={0}
@@ -153,7 +153,7 @@ function UploadProgress({
       >
         <div className="h-full bg-emerald-600 transition-[width]" style={{ width: `${pct}%` }} />
       </div>
-      <div className="flex items-center justify-between text-xs text-zinc-500">
+      <div className="flex items-center justify-between text-xs text-slate-500">
         <span className="tabular-nums">
           {formatBytes(sentBytes)} of {formatBytes(totalBytes)}
           {rate > 0 && ` · ${formatBytes(rate)}/s`}
@@ -163,7 +163,7 @@ function UploadProgress({
           Cancel
         </button>
       </div>
-      <p className="text-xs text-zinc-500">Keep this page open until the upload finishes.</p>
+      <p className="text-xs text-slate-500">Keep this page open until the upload finishes.</p>
     </div>
   );
 }

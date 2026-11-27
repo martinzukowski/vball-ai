@@ -182,3 +182,66 @@ def extract(
     cache_dir.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(cache, x=x)
     return x
+
+
+WHISTLE_VERSION = "whistle14-v1"
+
+
+def whistle_features(video: Path, n_steps: int) -> F32:
+    """Referee-whistle cues per 0.2 s step (14 values): log of the loudest short-window (32 ms)
+    energy in 12 bands across 2-4.5 kHz, tonality (peak / median magnitude in that range: high
+    for a whistle's pure tone, low for squeaks and crowd noise), and whistle-range energy
+    relative to all audio. Whistles from neighbouring courts look the same, so the model has
+    to learn how much to trust these; nothing here decides "rally over" by itself."""
+    raw = subprocess.run(  # noqa: S603
+        [
+            tool("ffmpeg"),
+            "-v",
+            "error",
+            "-i",
+            str(video),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            str(AUDIO_RATE),
+            "-f",
+            "f32le",
+            "pipe:1",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    sig = np.frombuffer(raw, np.float32)
+    win, hop = 512, 256
+    freqs = np.fft.rfftfreq(win, 1 / AUDIO_RATE)
+    band = (freqs >= 2000) & (freqs < 4500)
+    edges = np.linspace(2000, 4500, 13)
+    band_idx = np.clip(np.searchsorted(edges, freqs[band]) - 1, 0, 11)
+    window = np.hanning(win).astype(np.float32)
+    n_frames = max(0, (len(sig) - win) // hop + 1)
+    out = np.full((n_steps, 14), -12.0, np.float32)
+    out[:, 12] = 0.0
+    out[:, 13] = 0.0
+    if n_frames == 0:
+        return out
+    step_of = ((np.arange(n_frames) * hop + win / 2) / AUDIO_RATE / STEP).astype(int)
+    chunk = 4096
+    for c0 in range(0, n_frames, chunk):
+        idx = np.arange(c0, min(n_frames, c0 + chunk))
+        frames = sig[idx[:, None] * hop + np.arange(win)[None, :]] * window
+        mag = np.abs(np.fft.rfft(frames, axis=1))
+        wb = mag[:, band]
+        energy = np.zeros((len(idx), 12), np.float32)
+        for b in range(12):
+            energy[:, b] = (wb[:, band_idx == b] ** 2).sum(1)
+        logs = np.log(energy + 1e-8)
+        tonal = wb.max(1) / (np.median(wb, 1) + 1e-6)
+        rel = np.log((wb**2).sum(1) + 1e-8) - np.log((mag**2).sum(1) + 1e-8)
+        for k, s in enumerate(step_of[idx]):
+            if s >= n_steps:
+                continue
+            out[s, :12] = np.maximum(out[s, :12], logs[k])
+            out[s, 12] = max(out[s, 12], float(np.log1p(tonal[k])))
+            out[s, 13] = max(out[s, 13], float(rel[k]))
+    return out

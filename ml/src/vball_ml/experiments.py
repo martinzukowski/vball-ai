@@ -34,12 +34,15 @@ class Recipe:
     input: str = "mixed"  # mixed = tfc.crop + hjsc.full (what production saw), or crop/full
     video_norm: bool = True
     motion: bool = False  # add |x_t - x_{t-1}| of the video embedding (smoothed)
+    whistle: bool = False  # add whistle-cue audio features (data/features/<m>.whistle.npz)
     width: int = 64
     in_dropout: float = 0.2
     noise: float = 0.0
     epochs: int = 300
     seeds: int = 3
     threshold: str = "0.5"  # number, or "otsu" (per-video adaptive)
+    exit_threshold: float = -1.0  # < 0: no hysteresis
+    min_gap_s: float = 1.0
     extra: dict[str, str] = field(default_factory=dict)
 
 
@@ -54,13 +57,16 @@ def refs(match: str) -> list[tuple[float, float]]:
     return [(float(r["start"]), float(r["end"])) for r in rows]
 
 
-def prepare(x: np.ndarray, r: Recipe) -> np.ndarray:
+def prepare(x: np.ndarray, r: Recipe, match: str = "") -> np.ndarray:
     if r.motion:
         v = x[:, :384]
         d = np.vstack([np.zeros((1, 384), np.float32), np.abs(np.diff(v, axis=0))])
         k = np.ones(5) / 5
         d = np.apply_along_axis(lambda c: np.convolve(c, k, mode="same"), 0, d)
         x = np.hstack([x, d.astype(np.float32)])
+    if r.whistle:
+        w = np.load(ROOT / "data" / "features" / f"{match}.whistle.npz")["x"][: len(x)]
+        x = np.hstack([x, w])
     return video_norm(x) if r.video_norm else x
 
 
@@ -77,7 +83,7 @@ def otsu(p: np.ndarray) -> float:
 
 def run(name: str, r: Recipe) -> dict[str, object]:
     t0 = time.time()
-    data = {m: (prepare(load(m, r.input), r), refs(m)) for m in MATCHES}
+    data = {m: (prepare(load(m, r.input), r, m), refs(m)) for m in MATCHES}
     per: dict[str, dict[str, float]] = {}
     for held in MATCHES:
         train_ms = [m for m in MATCHES if m != held]
@@ -98,7 +104,13 @@ def run(name: str, r: Recipe) -> dict[str, object]:
         ]
         prob = Bundle([n for n, _ in nets], nets[0][1], {}).predict(data[held][0])
         thr = otsu(prob) if r.threshold == "otsu" else float(r.threshold)
-        sc = score(data[held][1], decode(prob, threshold=thr))
+        spans = decode(
+            prob,
+            threshold=thr,
+            min_gap_s=r.min_gap_s,
+            exit_threshold=r.exit_threshold if r.exit_threshold >= 0 else None,
+        )
+        sc = score(data[held][1], spans)
         per[held] = {
             "f1_50": round(sc.f1_50, 3),
             "f1_70": round(sc.f1_70, 3),

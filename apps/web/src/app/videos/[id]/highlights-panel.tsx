@@ -9,7 +9,7 @@ import { formatBytes, formatDuration } from "@/lib/format";
 type Export = components["schemas"]["ExportOut"];
 
 const btn =
-  "rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm font-medium hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-900";
+  "rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-medium hover:bg-slate-100 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-900";
 
 /** Request highlight videos (cut on the server) and download finished ones. */
 export function HighlightsPanel({
@@ -64,7 +64,7 @@ export function HighlightsPanel({
 
   const short = baseName.replace(/\.[^.]+$/, "").slice(0, 60);
   return (
-    <section className="flex flex-col gap-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+    <section className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white shadow-sm p-3 dark:border-slate-800">
       <h2 className="text-sm font-semibold">Highlight videos</h2>
       <div className="flex flex-wrap gap-1.5">
         <button type="button" className={btn} disabled={allIds.length === 0}
@@ -78,12 +78,12 @@ export function HighlightsPanel({
       </div>
       {error && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{error}</p>}
       {exports && exports.length > 0 && (
-        <ul className="flex flex-col divide-y divide-zinc-100 text-sm dark:divide-zinc-900">
+        <ul className="flex flex-col divide-y divide-slate-100 text-sm dark:divide-slate-900">
           {exports.map((ex) => (
             <li key={ex.id} className="flex items-center gap-2 py-2">
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{ex.name}</p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-slate-500">
                   {ex.clip_count} clips · {formatDuration(ex.duration_s)}
                   {ex.size_bytes ? ` · ${formatBytes(ex.size_bytes)}` : ""}
                   {ex.status === "pending" && ` · making it… ${Math.round(ex.progress * 100)}%`}
@@ -95,7 +95,7 @@ export function HighlightsPanel({
                   Download
                 </a>
               )}
-              <button type="button" className="px-2 py-1 text-xs text-zinc-500 hover:text-red-700"
+              <button type="button" className="px-2 py-1 text-xs text-slate-500 hover:text-red-700"
                 onClick={() => remove(ex)} aria-label={`Delete ${ex.name}`}>
                 Delete
               </button>
@@ -103,7 +103,7 @@ export function HighlightsPanel({
           ))}
         </ul>
       )}
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-slate-500">
         Made from the 720p playback copy, with ½ s of padding around each rally. Kept for 30 days.
       </p>
     </section>

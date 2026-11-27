@@ -14,7 +14,7 @@ export default function AccountPage() {
   return (
     <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-4 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
-      <Suspense fallback={<p className="text-zinc-500">Loading…</p>}>
+      <Suspense fallback={<p className="text-slate-500">Loading…</p>}>
         <SignedInUser />
       </Suspense>
     </main>
@@ -41,7 +41,7 @@ async function SignedInUser() {
       <form action="/auth/signout" method="post">
         <button
           type="submit"
-          className="h-11 rounded-lg border border-zinc-300 px-4 font-medium dark:border-zinc-700"
+          className="h-11 rounded-lg border border-slate-300 px-4 font-medium dark:border-slate-700"
         >
           Sign out
         </button>

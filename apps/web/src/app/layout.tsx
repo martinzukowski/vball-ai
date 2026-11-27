@@ -1,16 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import Link from "next/link";
 
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -23,18 +18,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="border-b border-zinc-200 dark:border-zinc-800">
-          <nav className="mx-auto flex h-14 w-full max-w-2xl items-center gap-5 px-4 text-sm">
-            <Link href="/" className="text-base font-semibold tracking-tight">
-              VBall
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <nav className="mx-auto flex h-16 w-full max-w-6xl items-center gap-8 px-4 text-[15px]">
+            <Link href="/" className="flex items-center gap-2 text-xl font-bold tracking-tight text-blue-600">
+              <span aria-hidden>🏐</span> VBall
             </Link>
-            <Link href="/videos" className="text-zinc-600 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            <Link href="/videos" className="font-medium text-slate-500 hover:text-slate-900">
               Videos
             </Link>
-            <Link href="/account" className="ml-auto text-zinc-600 hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+            <Link href="/account" className="ml-auto font-medium text-slate-500 hover:text-slate-900">
               Account
             </Link>
           </nav>

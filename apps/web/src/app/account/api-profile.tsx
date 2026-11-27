@@ -40,7 +40,7 @@ export function ApiProfile() {
     };
   }, []);
 
-  if (state.kind === "loading") return <p className="text-zinc-500">Checking API access…</p>;
+  if (state.kind === "loading") return <p className="text-slate-500">Checking API access…</p>;
   if (state.kind === "error") {
     return (
       <p role="alert" className="text-red-700 dark:text-red-400">
@@ -51,11 +51,11 @@ export function ApiProfile() {
   const { me } = state;
   return (
     <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-      <dt className="text-zinc-500">User ID</dt>
+      <dt className="text-slate-500">User ID</dt>
       <dd className="font-mono break-all">{me.id}</dd>
-      <dt className="text-zinc-500">Storage quota</dt>
+      <dt className="text-slate-500">Storage quota</dt>
       <dd>{(me.quota_storage_bytes / GIB).toFixed(0)} GB</dd>
-      <dt className="text-zinc-500">Processing quota</dt>
+      <dt className="text-slate-500">Processing quota</dt>
       <dd>{me.quota_minutes_month} min / month</dd>
     </dl>
   );

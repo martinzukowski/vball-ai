@@ -204,7 +204,7 @@ export function VideoPlayer() {
       </p>
     );
   }
-  if (!video) return <p className="text-zinc-500">Loading…</p>;
+  if (!video) return <p className="text-slate-500">Loading…</p>;
 
   const shown =
     tab === "longest"
@@ -219,10 +219,10 @@ export function VideoPlayer() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-zinc-200 pb-3 dark:border-zinc-800">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 pb-3 dark:border-slate-800">
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{video.filename}</h1>
         {rallies.length > 0 && (
-          <span className="text-sm text-zinc-500 tabular-nums">
+          <span className="text-sm text-slate-500 tabular-nums">
             {rallies.length} rallies · {clock(kept)} of{" "}
             {video.duration_s ? clock(video.duration_s) : "?"}
           </span>
@@ -235,7 +235,7 @@ export function VideoPlayer() {
           />
           Skip dead time
         </label>
-        <Link href="/videos" className="text-sm text-zinc-500 hover:underline">
+        <Link href="/videos" className="text-sm text-slate-500 hover:underline">
           All videos
         </Link>
       </div>
@@ -255,7 +255,7 @@ export function VideoPlayer() {
               className="aspect-video w-full rounded-lg bg-black object-contain"
             />
           ) : (
-            <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-zinc-900 text-zinc-400">
+            <div className="flex aspect-video w-full items-center justify-center rounded-lg bg-slate-900 text-slate-400">
               {video.status === "ready" ? "Loading video…" : "Still preparing this video…"}
             </div>
           )}
@@ -301,7 +301,7 @@ export function VideoPlayer() {
             )}
           </div>
           {data?.analysis && (
-            <p className="mt-2 text-xs text-zinc-500">
+            <p className="mt-2 text-xs text-slate-500">
               {describeDetector(data.analysis.detector)}
               {!data.analysis.used_play_area &&
                 " No play area marked: motion is measured on the whole frame, so people walking past the camera can cause mistakes."}
@@ -311,8 +311,8 @@ export function VideoPlayer() {
           )}
         </div>
 
-        <aside className="flex max-h-[75vh] flex-col overflow-hidden rounded-lg border border-zinc-200 lg:flex-1 dark:border-zinc-800">
-          <div className="flex border-b border-zinc-200 text-sm dark:border-zinc-800">
+        <aside className="flex max-h-[75vh] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:flex-1 dark:border-slate-800">
+          <div className="flex border-b border-slate-200 text-sm dark:border-slate-800">
             {(
               [
                 ["all", "Rallies"],
@@ -326,22 +326,22 @@ export function VideoPlayer() {
                 onClick={() => setTab(key)}
                 className={`flex-1 px-3 py-2.5 font-medium ${
                   tab === key
-                    ? "border-b-2 border-blue-600 text-zinc-950 dark:text-white"
-                    : "text-zinc-500"
+                    ? "border-b-2 border-blue-600 text-slate-950 dark:text-white"
+                    : "text-slate-500"
                 }`}
               >
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
             <span>{busy ? "Detecting rallies…" : "Sensitivity"}</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 disabled={busy || sens <= -5}
                 onClick={() => reanalyze(sens - 2)}
-                className="rounded-md border border-zinc-300 px-2 py-1 disabled:opacity-40 dark:border-zinc-700"
+                className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-40 dark:border-slate-700"
               >
                 Fewer
               </button>
@@ -350,23 +350,23 @@ export function VideoPlayer() {
                 type="button"
                 disabled={busy || sens >= 5}
                 onClick={() => reanalyze(sens + 2)}
-                className="rounded-md border border-zinc-300 px-2 py-1 disabled:opacity-40 dark:border-zinc-700"
+                className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-40 dark:border-slate-700"
               >
                 More
               </button>
             </div>
           </div>
           <ul className="flex-1 overflow-y-auto">
-            {!data && <li className="p-4 text-sm text-zinc-500">Loading rallies…</li>}
+            {!data && <li className="p-4 text-sm text-slate-500">Loading rallies…</li>}
             {data && !data.analysis && (
-              <li className="p-4 text-sm text-zinc-500">
+              <li className="p-4 text-sm text-slate-500">
                 {data.job?.state === "failed"
                   ? `Rally detection failed: ${data.job.error_message ?? "unknown error"}`
                   : `Finding rallies… ${data.job ? Math.round(data.job.progress * 100) : 0}%`}
               </li>
             )}
             {data?.analysis && shown.length === 0 && (
-              <li className="p-4 text-sm text-zinc-500">
+              <li className="p-4 text-sm text-slate-500">
                 {tab === "starred" ? "No starred rallies yet." : "No rallies detected."}
               </li>
             )}
@@ -375,7 +375,7 @@ export function VideoPlayer() {
               return (
                 <li
                   key={r.id}
-                  className={`flex items-center gap-2 border-b border-zinc-100 px-3 dark:border-zinc-900 ${
+                  className={`flex items-center gap-2 border-b border-slate-100 px-3 dark:border-slate-900 ${
                     active ? "bg-blue-600 text-white" : ""
                   }`}
                 >
@@ -387,11 +387,11 @@ export function VideoPlayer() {
                     <span className="tabular-nums">
                       {clock(r.start_t)} – {clock(r.end_t)}
                     </span>
-                    <span className={active ? "text-white/60" : "text-zinc-300 dark:text-zinc-700"}>
+                    <span className={active ? "text-white/60" : "text-slate-300 dark:text-slate-700"}>
                       |
                     </span>
                     <span className="font-medium">Rally #{r.number}</span>
-                    <span className={`ml-auto text-xs tabular-nums ${active ? "text-white/80" : "text-zinc-500"}`}>
+                    <span className={`ml-auto text-xs tabular-nums ${active ? "text-white/80" : "text-slate-500"}`}>
                       {Math.round(r.end_t - r.start_t)}s
                     </span>
                   </button>
