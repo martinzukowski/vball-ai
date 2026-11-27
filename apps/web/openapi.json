@@ -797,6 +797,33 @@
             "title": "F1",
             "type": "number"
           },
+          "held_out_f1": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Out F1"
+          },
+          "held_out_test": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Out Test"
+          },
+          "in_training": {
+            "default": false,
+            "title": "In Training",
+            "type": "boolean"
+          },
           "matched": {
             "title": "Matched",
             "type": "integer"

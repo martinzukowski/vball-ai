@@ -26,6 +26,7 @@ from vball_core.db.enums import ExportStatus, JobErrorCode, JobKind, JobState, V
 from vball_core.db.models import (
     AnalysisRun,
     HighlightExport,
+    ModelVersion,
     ProcessingJob,
     Profile,
     Rally,
@@ -583,6 +584,11 @@ class ReferenceCheck(BaseModel):
     matched: int
     f1: float
     missed: list[list[float]]  # reference rallies we didn't find, [[start, end], ...]
+    # The active model was trained on this video, so the agreement above is in-sample. Then
+    # held_out_f1 is the honest score from training without it (held_out_test: "gym"/"match").
+    in_training: bool = False
+    held_out_f1: float | None = None
+    held_out_test: str | None = None
 
 
 class RalliesOut(BaseModel):
@@ -628,6 +634,21 @@ async def enqueue_analysis(db: DbSession, video: Video, sensitivity: int) -> Non
     await db.run_sync(run)
 
 
+async def held_out_for(
+    db: DbSession, run: AnalysisRun, video_id: uuid.UUID
+) -> dict[str, Any] | None:
+    """The run's model's held-out result for this video, if the model was trained on it."""
+    if not run.model_version_ids:
+        return None
+    metrics = await db.scalar(
+        select(ModelVersion.metrics).where(ModelVersion.id == run.model_version_ids[0])
+    )
+    if not metrics or str(video_id) not in (metrics.get("trained_on") or []):
+        return None
+    held = (metrics.get("held_out_by_video") or {}).get(str(video_id))
+    return held if isinstance(held, dict) else {}
+
+
 @router.get("/{video_id}/rallies", response_model=RalliesOut, operation_id="getRallies")
 async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> RalliesOut:
     video = await load_owned(db, user, video_id)
@@ -670,7 +691,11 @@ async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> 
                 [(float(x["start_t"]), float(x["end_t"])) for x in ref_set.rallies],
                 source,
             )
+            held = await held_out_for(db, run, video.id)
             reference = ReferenceCheck(
+                in_training=held is not None,
+                held_out_f1=held.get("f1") if held else None,
+                held_out_test=held.get("held_out") if held else None,
                 source=source,
                 n_reference=comparison.n_reference,
                 n_ours=comparison.n_ours,

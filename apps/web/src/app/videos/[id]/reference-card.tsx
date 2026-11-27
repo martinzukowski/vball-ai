@@ -18,15 +18,36 @@ export function ReferenceCard({
 }) {
   const name = NAMES[ref.source] ?? ref.source;
   const pct = Math.round(ref.f1 * 100);
+  // When the model learned from this very match, its agreement here is optimistic; lead with
+  // the score it got when this gym (or match) was left out of training instead.
+  const held = ref.in_training && ref.held_out_f1 != null ? Math.round(ref.held_out_f1 * 100) : null;
+  const shown = held ?? pct;
   const tone =
-    pct >= 95 ? "text-emerald-600" : pct >= 80 ? "text-blue-600" : pct >= 60 ? "text-amber-600" : "text-red-600";
+    shown >= 95
+      ? "text-emerald-600"
+      : shown >= 80
+        ? "text-blue-600"
+        : shown >= 60
+          ? "text-amber-600"
+          : "text-red-600";
   const extra = ref.n_ours - ref.matched;
   return (
     <section className="mt-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-4">
-        <div className={`text-3xl font-bold tabular-nums ${tone}`}>{pct}%</div>
+        <div className={`text-3xl font-bold tabular-nums ${tone}`}>{shown}%</div>
         <div className="text-sm">
-          <p className="font-semibold">Agreement with {name}</p>
+          <p className="font-semibold">
+            {held != null
+              ? `Agreement with ${name} on unseen footage`
+              : `Agreement with ${name}${ref.in_training ? " (model trained on this match)" : ""}`}
+          </p>
+          {held != null && (
+            <p className="text-slate-500">
+              The model was trained on this match. Trained without this{" "}
+              {ref.held_out_test === "gym" ? "gym" : "match"}, it scored {held}%; today&apos;s cut
+              agrees {pct}%.
+            </p>
+          )}
           <p className="text-slate-500">
             {ref.matched} of {ref.n_reference} {name} rallies matched
             {extra > 0 && ` · ${extra} extra on our side`}

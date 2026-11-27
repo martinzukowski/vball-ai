@@ -37,6 +37,21 @@ def held_out_scores() -> dict[str, Any]:
     return out
 
 
+def held_out_by_video(
+    video_ids: list[str], names: list[str], held_out: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    """F1 for each training video when the model was trained without it. Prefers the stricter
+    leave-one-venue-out run (no match from that gym in training) over leave-one-match-out."""
+    out: dict[str, dict[str, Any]] = {}
+    for vid, name in zip(video_ids, names, strict=False):
+        for run, test in (("3m-best-LOVO", "gym"), ("3m-best-LOMO", "match")):
+            score = held_out.get(run, {}).get("per_match", {}).get(name)
+            if score:
+                out[vid] = {"f1": score["f1_50"], "held_out": test}
+                break
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", required=True)
@@ -78,8 +93,14 @@ def main() -> None:
         "held_out": held_out_scores(),
         "matches": len(names),
     }
-    # register() stores meta["metrics"]; the retrain gate reads metrics.trained_on.
-    meta["metrics"] = {"held_out": meta["held_out"], "trained_on": meta["trained_on"]}
+    meta["held_out_by_video"] = held_out_by_video(meta["trained_on"], names, meta["held_out"])
+    # register() stores meta["metrics"]; the retrain gate reads metrics.trained_on and the app
+    # shows held_out_by_video instead of the (optimistic) in-sample agreement.
+    meta["metrics"] = {
+        "held_out": meta["held_out"],
+        "trained_on": meta["trained_on"],
+        "held_out_by_video": meta["held_out_by_video"],
+    }
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "model.pt"
         save_bundle(str(path), Bundle([n for n, _ in fitted], fitted[0][1], meta))

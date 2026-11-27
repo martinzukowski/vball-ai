@@ -209,7 +209,7 @@ Also done (part 2):
 - Sign-in: Supabase's built-in mailer hit its hourly limit after repeated re-logins. Added
   password sign-in (toggle on /login) and "Set a password" on /account.
 
-### Generalisation work (2026-11-26) — RESUME HERE
+### Generalisation work (2026-11-26)
 **State when handed off:** all code committed; the gated retrain (`2026-11-26.1`) was stopped
 before it registered anything, so local production is still `2026-11-25.1` (trained on TFC only).
 
@@ -250,6 +250,37 @@ to confirm any score near 95% isn't selection luck.
 New-PC notes: local Docker data (database, storage, models, features) does NOT transfer. To
 continue experiments on another PC: copy the 4 match videos, start the stack, re-ingest, and
 features are recomputed (~15 min/match on CPU), or just continue other milestones (M8 deploy).
+
+### Three-match model + honest agreement in the UI (2026-11-27) — RESUME HERE
+Why HJSC showed no rallies: production was still `2026-11-25.1` (TFC only, global
+normalisation), which predicts ~0 everywhere at HJSC. Fixed by shipping the cross-gym recipe.
+
+- Third reference match (TFC "Dino vs Carlos Santos" T2 G1 S1, 46 rallies aligned) imported.
+- `python -m vball_ml.train_production --version V --trained-on ID,ID,ID --register` trains the
+  best recipe (motion cues, per-video norm, width 128, dropout 0.5, min gap 3 s) on all
+  reference matches. The model file carries its recipe (`Bundle.prepare` / `decode_params`), so
+  the worker runs it exactly as evaluated. Production is now **`2026-11-27.1`** (tfc, hjsc,
+  tfc2); `2026-11-25.1` retired. All three videos re-analysed (47 / 45 / 46 rallies).
+- Worker re-uses a previous run's `learned_features.npz` when extractor and play area match, so
+  re-detecting with a new model takes seconds.
+- Held-out results, 3 matches (F1@tIoU0.5 vs Balltime):
+
+| Test | TFC Finals | HJSC | TFC Dino/Carlos | mean |
+|---|---|---|---|---|
+| leave-one-match-out | 0.96 | 0.81 | 1.00 | 0.921 |
+| **leave-one-gym-out** | 0.91 | 0.81 | 0.94 | **0.884** |
+
+- UI: each video page shows an "Agreement with Balltime" card (core `compare_to_reference`,
+  API `RalliesOut.reference`), per-rally "not in Balltime" tags and missed-rally buttons. When the
+  active model was trained on that video, the card leads with the held-out score
+  (`metrics.held_out_by_video`, leave-one-gym-out preferred) and shows the in-sample agreement
+  only as a footnote, so improvements seen in the UI are honest.
+- Next levers toward 95% on unseen gyms: more matches from other gyms (biggest), a pretrained
+  ball tracker (TrackNetV3, MIT) and/or player detector as extra features, judged
+  leave-one-gym-out. HJSC's weakness is rally ends (median end error 1.4 s) and a few short
+  rallies missed.
+- Local stack: always start compose with `--env-file .env` (without it the API exits on an
+  empty `supabase_url`).
 
 ## Decisions to remember
 

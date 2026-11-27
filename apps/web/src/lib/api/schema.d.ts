@@ -625,6 +625,15 @@ export interface components {
         ReferenceCheck: {
             /** F1 */
             f1: number;
+            /** Held Out F1 */
+            held_out_f1?: number | null;
+            /** Held Out Test */
+            held_out_test?: string | null;
+            /**
+             * In Training
+             * @default false
+             */
+            in_training: boolean;
             /** Matched */
             matched: number;
             /** Missed */
