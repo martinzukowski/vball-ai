@@ -63,28 +63,66 @@ def load_model(mv: ModelVersion, storage: ObjectStorage, settings: Settings) -> 
     return _BUNDLES[mv.sha256]
 
 
-def learned_rallies(
-    ctx: JobContext, proxy: Path, play_area: Any, bundle: Any, work: Path, duration: float
-) -> list[dict[str, Any]]:
-    from vball_ml.features import extract
-    from vball_ml.rally_model import STEP, decode
+def reusable_features(ctx: JobContext, video_id: Any, play_area: Any) -> str | None:
+    """Key of features saved by an earlier analysis of this video with the same extractor and
+    play area, so re-detection with a new model takes seconds instead of re-running DINOv2."""
+    from vball_ml.features import EXTRACTOR_VERSION
 
-    with ctx.stage("embeddings"):
-        x = extract(
-            proxy,
-            play_area,
-            work / "features",
-            on_progress=lambda p: ctx.progress(0.05 + 0.8 * p),
-            expected_steps=int(duration / STEP) + 1,
-        )
-    ctx.progress(0.85)
-    # Keep the features so this video can become training data without re-extracting.
+    with ctx.engine.connect() as conn:
+        rows = conn.execute(
+            select(AnalysisRun.params)
+            .where(AnalysisRun.video_id == video_id)
+            .order_by(AnalysisRun.created_at.desc())
+        ).all()
+    for (params,) in rows:
+        key = (params or {}).get("learned_features_key")
+        if not key:
+            continue
+        same_extractor = params.get("extractor", EXTRACTOR_VERSION) == EXTRACTOR_VERSION
+        if same_extractor and params.get("play_area") == play_area:
+            return str(key)
+    return None
+
+
+def learned_rallies(
+    ctx: JobContext,
+    proxy: Path,
+    play_area: Any,
+    bundle: Any,
+    work: Path,
+    duration: float,
+    storage: ObjectStorage,
+    reuse_key: str | None = None,
+) -> list[dict[str, Any]]:
     import numpy as np
 
-    np.savez_compressed(work / "learned_features.npz", x=x)
+    from vball_ml.features import extract
+    from vball_ml.rally_model import STEP
+
+    feat_file = work / "learned_features.npz"
+    x = None
+    if reuse_key:
+        try:
+            with ctx.stage("reuse_features"):
+                storage.download(reuse_key, str(feat_file))
+                x = np.load(feat_file)["x"]
+        except Exception as exc:  # artifact gone: fall back to extracting again
+            log.warning("feature_reuse_failed", error=type(exc).__name__)
+            x = None
+    if x is None:
+        with ctx.stage("embeddings"):
+            x = extract(
+                proxy,
+                play_area,
+                work / "features",
+                on_progress=lambda p: ctx.progress(0.05 + 0.8 * p),
+                expected_steps=int(duration / STEP) + 1,
+            )
+        # Keep the features so this video can become training data without re-extracting.
+        np.savez_compressed(feat_file, x=x)
+    ctx.progress(0.85)
     with ctx.stage("model"):
-        prob = bundle.predict(x)
-        spans = decode(prob)
+        prob, spans = bundle.rallies(x)  # recipe (motion, normalisation, decoding) from the model
     return [
         {
             "start": s,
@@ -124,11 +162,21 @@ def run_analyze(ctx: JobContext, settings: Settings, storage: ObjectStorage) -> 
         ctx.progress(0.05)
         if mv is not None:
             try:
+                reuse_key = reusable_features(ctx, video.id, play_area)
                 learned = learned_rallies(
-                    ctx, proxy, play_area, load_model(mv, storage, settings), work, duration
+                    ctx,
+                    proxy,
+                    play_area,
+                    load_model(mv, storage, settings),
+                    work,
+                    duration,
+                    storage,
+                    reuse_key,
                 )
                 feat_file = work / "learned_features.npz"
-                if feat_file.exists():
+                if reuse_key:
+                    learned_features_key = reuse_key
+                elif feat_file.exists():
                     learned_features_key = (
                         f"artifacts/{video.owner_id}/{video.id}/{run_id}/learned_features.npz"
                     )
@@ -166,6 +214,7 @@ def run_analyze(ctx: JobContext, settings: Settings, storage: ObjectStorage) -> 
             "mode": "learned",
             "camera_moves": [],
             "learned_features_key": learned_features_key,
+            "extractor": "dinov2s-cls-crop+logband32-v1",
         }
         cams = [0.0]
     else:

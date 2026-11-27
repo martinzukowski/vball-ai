@@ -613,6 +613,16 @@
             "title": "Rallies",
             "type": "array"
           },
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReferenceCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reviewed_at": {
             "anyOf": [
               {
@@ -705,6 +715,17 @@
             "title": "Id",
             "type": "string"
           },
+          "matches_reference": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches Reference"
+          },
           "number": {
             "title": "Number",
             "type": "integer"
@@ -768,6 +789,50 @@
           "checks"
         ],
         "title": "Readiness",
+        "type": "object"
+      },
+      "ReferenceCheck": {
+        "properties": {
+          "f1": {
+            "title": "F1",
+            "type": "number"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "integer"
+          },
+          "missed": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Missed",
+            "type": "array"
+          },
+          "n_ours": {
+            "title": "N Ours",
+            "type": "integer"
+          },
+          "n_reference": {
+            "title": "N Reference",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "n_reference",
+          "n_ours",
+          "matched",
+          "f1",
+          "missed"
+        ],
+        "title": "ReferenceCheck",
         "type": "object"
       },
       "StorageUsage": {

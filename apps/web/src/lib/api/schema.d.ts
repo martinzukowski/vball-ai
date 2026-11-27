@@ -566,6 +566,7 @@ export interface components {
             play_area: number[][] | null;
             /** Rallies */
             rallies: components["schemas"]["RallyOut"][];
+            reference?: components["schemas"]["ReferenceCheck"] | null;
             /** Reviewed At */
             reviewed_at: string | null;
         };
@@ -594,6 +595,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Matches Reference */
+            matches_reference?: boolean | null;
             /** Number */
             number: number;
             /** Serve T */
@@ -617,6 +620,21 @@ export interface components {
              * @enum {string}
              */
             status: "ready" | "not_ready";
+        };
+        /** ReferenceCheck */
+        ReferenceCheck: {
+            /** F1 */
+            f1: number;
+            /** Matched */
+            matched: number;
+            /** Missed */
+            missed: number[][];
+            /** N Ours */
+            n_ours: number;
+            /** N Reference */
+            n_reference: number;
+            /** Source */
+            source: string;
         };
         /** StorageUsage */
         StorageUsage: {

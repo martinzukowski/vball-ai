@@ -35,7 +35,7 @@ from vball_core.db.models import (
     Video,
 )
 from vball_core.logging import get_logger
-from vball_core.rallies import apply_edits, overlaps
+from vball_core.rallies import apply_edits, compare_to_reference, overlaps
 from vball_core.settings import Settings
 from vball_core.storage import ObjectStorage, StorageNotConfiguredError, part_plan
 
@@ -562,6 +562,7 @@ class RallyOut(BaseModel):
     serve_t: float | None
     source: Literal["model", "user"]
     edited: bool
+    matches_reference: bool | None = None  # None when there is no reference to compare to
 
 
 class AnalysisOut(BaseModel):
@@ -575,12 +576,22 @@ class AnalysisOut(BaseModel):
     camera_moves: list[float]
 
 
+class ReferenceCheck(BaseModel):
+    source: str  # e.g. "balltime"
+    n_reference: int
+    n_ours: int
+    matched: int
+    f1: float
+    missed: list[list[float]]  # reference rallies we didn't find, [[start, end], ...]
+
+
 class RalliesOut(BaseModel):
     analysis: AnalysisOut | None
     rallies: list[RallyOut]
     play_area: list[list[float]] | None
     job: JobOut | None  # latest analysis job (queued/running/failed shows here)
     reviewed_at: datetime | None  # when the user last marked this video's rallies correct
+    reference: ReferenceCheck | None = None  # comparison with imported reference rallies
 
 
 class PlayAreaIn(BaseModel):
@@ -631,6 +642,7 @@ async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> 
     )
     rallies: list[RallyOut] = []
     analysis = None
+    reference: ReferenceCheck | None = None
     if run is not None:
         base = (await db.scalars(select(Rally).where(Rally.analysis_run_id == run.id))).all()
         edits = (
@@ -640,6 +652,32 @@ async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> 
                 .order_by(RallyEdit.created_at)
             )
         ).all()
+        effective = apply_edits(base, edits)
+        ref_set = await db.scalar(
+            select(RallyLabelSet)
+            .where(
+                RallyLabelSet.video_id == video.id,
+                RallyLabelSet.rallies[0]["source"].astext.like("reference:%"),
+            )
+            .order_by(RallyLabelSet.created_at.desc())
+            .limit(1)
+        )
+        comparison = None
+        if ref_set is not None:
+            source = str(ref_set.rallies[0]["source"]).split(":", 1)[1]
+            comparison = compare_to_reference(
+                effective,
+                [(float(x["start_t"]), float(x["end_t"])) for x in ref_set.rallies],
+                source,
+            )
+            reference = ReferenceCheck(
+                source=source,
+                n_reference=comparison.n_reference,
+                n_ours=comparison.n_ours,
+                matched=comparison.matched,
+                f1=comparison.f1,
+                missed=[[s0, e0] for s0, e0 in comparison.missed],
+            )
         rallies = [
             RallyOut(
                 id=r.key,
@@ -649,8 +687,9 @@ async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> 
                 serve_t=r.serve_t,
                 source=r.source,
                 edited=r.edited,
+                matches_reference=(r.key in comparison.matched_keys) if comparison else None,
             )
-            for i, r in enumerate(apply_edits(base, edits))
+            for i, r in enumerate(effective)
         ]
         p = run.params
         analysis = AnalysisOut(
@@ -672,6 +711,7 @@ async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> 
         play_area=video.play_area,
         job=JobOut.of(job) if job else None,
         reviewed_at=reviewed_at,
+        reference=reference,
     )
 
 

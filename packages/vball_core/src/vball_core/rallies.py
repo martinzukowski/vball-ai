@@ -94,3 +94,55 @@ def overlaps(
     rallies: Iterable[EffectiveRally], start: float, end: float, ignore: uuid.UUID | None
 ) -> bool:
     return any(r.key != ignore and r.start_t < end and start < r.end_t for r in rallies)
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceComparison:
+    source: str
+    n_reference: int
+    n_ours: int
+    matched: int  # one-to-one pairs overlapping by >= 50% (temporal IoU)
+    f1: float
+    matched_keys: frozenset[uuid.UUID]  # our rallies that match a reference rally
+    missed: list[tuple[float, float]]  # reference rallies we have no match for
+
+
+def _tiou(a: tuple[float, float], b: tuple[float, float]) -> float:
+    inter = max(0.0, min(a[1], b[1]) - max(a[0], b[0]))
+    union = max(a[1], b[1]) - min(a[0], b[0])
+    return inter / union if union > 0 else 0.0
+
+
+def compare_to_reference(
+    ours: list[EffectiveRally], reference: list[tuple[float, float]], source: str
+) -> ReferenceComparison:
+    """Greedy one-to-one matching by temporal IoU >= 0.5 (same criterion as the ML eval)."""
+    pairs = sorted(
+        (
+            (_tiou((r.start_t, r.end_t), ref), i, j)
+            for i, r in enumerate(ours)
+            for j, ref in enumerate(reference)
+        ),
+        reverse=True,
+    )
+    used_o: set[int] = set()
+    used_r: set[int] = set()
+    for iou, i, j in pairs:
+        if iou < 0.5:
+            break
+        if i in used_o or j in used_r:
+            continue
+        used_o.add(i)
+        used_r.add(j)
+    m = len(used_o)
+    p = m / len(ours) if ours else 0.0
+    rec = m / len(reference) if reference else 0.0
+    return ReferenceComparison(
+        source=source,
+        n_reference=len(reference),
+        n_ours=len(ours),
+        matched=m,
+        f1=round(2 * p * rec / (p + rec), 3) if p + rec else 0.0,
+        matched_keys=frozenset(ours[i].key for i in used_o),
+        missed=[reference[j] for j in range(len(reference)) if j not in used_r],
+    )

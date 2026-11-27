@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from vball_ml.evaluate import score
-from vball_ml.rally_model import STEP, Bundle, decode, labels_for, train, video_norm
+from vball_ml.rally_model import STEP, Bundle, add_motion, decode, labels_for, train, video_norm
 
 ROOT = Path(__file__).resolve().parents[3]
 LOG = ROOT / "ml" / "experiments" / "log.jsonl"
@@ -66,11 +66,7 @@ def refs(match: str) -> list[tuple[float, float]]:
 
 def prepare(x: np.ndarray, r: Recipe, match: str = "") -> np.ndarray:
     if r.motion:
-        v = x[:, :384]
-        d = np.vstack([np.zeros((1, 384), np.float32), np.abs(np.diff(v, axis=0))])
-        k = np.ones(5) / 5
-        d = np.apply_along_axis(lambda c: np.convolve(c, k, mode="same"), 0, d)
-        x = np.hstack([x, d.astype(np.float32)])
+        x = add_motion(x)
     if r.whistle:
         w = np.load(ROOT / "data" / "features" / f"{match}.whistle.npz")["x"][: len(x)]
         x = np.hstack([x, w])

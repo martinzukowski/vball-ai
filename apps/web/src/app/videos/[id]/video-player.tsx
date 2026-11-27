@@ -9,6 +9,7 @@ import type { components } from "@/lib/api/schema";
 import { formatDuration } from "@/lib/format";
 
 import { EditTools } from "./edit-tools";
+import { ReferenceCard } from "./reference-card";
 import { HighlightsPanel } from "./highlights-panel";
 import { PlayAreaEditor } from "./play-area-editor";
 
@@ -268,6 +269,18 @@ export function VideoPlayer() {
             />
           )}
           </div>
+          {data?.reference && (
+            <ReferenceCard
+              reference={data.reference}
+              onSeek={(t) => {
+                const v = videoRef.current;
+                if (!v) return;
+                setRalliesOnly(false);
+                v.currentTime = t;
+                void v.play();
+              }}
+            />
+          )}
           <div className="mt-3">
             <EditTools
               selected={selected}
@@ -304,6 +317,7 @@ export function VideoPlayer() {
             <p className="mt-2 text-xs text-slate-500">
               {describeDetector(data.analysis.detector)}
               {!data.analysis.used_play_area &&
+                !data.analysis.detector.startsWith("learned:") &&
                 " No play area marked: motion is measured on the whole frame, so people walking past the camera can cause mistakes."}
               {data.analysis.camera_moves.length > 0 &&
                 ` Camera moved ${data.analysis.camera_moves.length}× (at ${data.analysis.camera_moves.map(clock).join(", ")}).`}
@@ -391,6 +405,15 @@ export function VideoPlayer() {
                       |
                     </span>
                     <span className="font-medium">Rally #{r.number}</span>
+                    {r.matches_reference === false && (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                          active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        not in {data?.reference?.source ?? "reference"}
+                      </span>
+                    )}
                     <span className={`ml-auto text-xs tabular-nums ${active ? "text-white/80" : "text-slate-500"}`}>
                       {Math.round(r.end_t - r.start_t)}s
                     </span>

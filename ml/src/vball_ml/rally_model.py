@@ -61,6 +61,16 @@ def video_norm(x: F32) -> F32:
     return ((x - x.mean(0)) / (x.std(0) + 1e-6)).astype(np.float32)
 
 
+def add_motion(x: F32, video_dims: int = 384) -> F32:
+    """Append |change| of the frame embedding between consecutive steps (5-step smoothed):
+    how much the scene is moving. Measured cross-gym gain: LOMO F1 0.66 -> 0.78."""
+    v = x[:, :video_dims]
+    d = np.vstack([np.zeros((1, video_dims), np.float32), np.abs(np.diff(v, axis=0))])
+    k = np.ones(5) / 5
+    d = np.apply_along_axis(lambda c: np.convolve(c, k, mode="same"), 0, d)
+    return np.hstack([x, d.astype(np.float32)])
+
+
 @dataclass
 class Normaliser:
     mean: F32
@@ -168,10 +178,26 @@ class Bundle:
     norm: Normaliser
     meta: dict[str, object]
 
-    def predict(self, x: F32) -> F32:
+    def prepare(self, x: F32) -> F32:
+        """Raw extracted features -> model input, exactly as the model was trained."""
+        if self.meta.get("motion"):
+            x = add_motion(x)
         if self.meta.get("input_norm") == "per_video":
             x = video_norm(x)
+        return x
+
+    def predict(self, x: F32) -> F32:
+        """P(in rally) per step, from raw extracted features."""
+        x = self.prepare(x)
         return np.mean([predict(n, self.norm, x) for n in self.nets], axis=0).astype(np.float32)
+
+    def decode_params(self) -> dict[str, float]:
+        d = self.meta.get("decode")
+        return dict(d) if isinstance(d, dict) else {}
+
+    def rallies(self, x: F32) -> tuple[F32, list[tuple[float, float]]]:
+        prob = self.predict(x)
+        return prob, decode(prob, **self.decode_params())
 
 
 def save_bundle(path: str, bundle: Bundle) -> None:
