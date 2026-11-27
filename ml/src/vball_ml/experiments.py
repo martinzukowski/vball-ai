@@ -26,7 +26,10 @@ LOG = ROOT / "ml" / "experiments" / "log.jsonl"
 MATCHES = {
     "tfc": "tfc_playoffs_t2_finals_s2",
     "hjsc": "hjsc_adam_vs_bigchillin_g2s1",
+    "tfc2": "tfc_dino_vs_carlos_t2_g1s1",
 }
+# Venue of each match: "venue" holdout never trains on the test match's venue.
+VENUES = {"tfc": "TFC", "tfc2": "TFC", "hjsc": "HJSC"}
 
 
 @dataclass
@@ -43,11 +46,15 @@ class Recipe:
     threshold: str = "0.5"  # number, or "otsu" (per-video adaptive)
     exit_threshold: float = -1.0  # < 0: no hysteresis
     min_gap_s: float = 1.0
+    holdout: str = "match"  # "match" (leave one match out) or "venue" (leave one gym out)
+    matches: str = "tfc,hjsc"  # which matches take part
     extra: dict[str, str] = field(default_factory=dict)
 
 
 def load(match: str, inp: str) -> np.ndarray:
     variant = {"mixed": "crop" if match == "tfc" else "full"}.get(inp, inp)
+    if variant == "crop" and not (ROOT / "data" / "features" / f"{match}.crop.npz").exists():
+        variant = "full"
     path = ROOT / "data" / "features" / f"{match}.{variant}.npz"
     return np.load(path)["x"]
 
@@ -83,10 +90,15 @@ def otsu(p: np.ndarray) -> float:
 
 def run(name: str, r: Recipe) -> dict[str, object]:
     t0 = time.time()
-    data = {m: (prepare(load(m, r.input), r, m), refs(m)) for m in MATCHES}
+    names = [m for m in r.matches.split(",") if m]
+    data = {m: (prepare(load(m, r.input), r, m), refs(m)) for m in names}
     per: dict[str, dict[str, float]] = {}
-    for held in MATCHES:
-        train_ms = [m for m in MATCHES if m != held]
+    for held in names:
+        train_ms = [
+            m for m in names if m != held and (r.holdout == "match" or VENUES[m] != VENUES[held])
+        ]
+        if not train_ms:
+            continue
         xs = np.concatenate([data[m][0] for m in train_ms])
         ys = np.concatenate([labels_for(len(data[m][0]), data[m][1]) for m in train_ms])
         nets = [
