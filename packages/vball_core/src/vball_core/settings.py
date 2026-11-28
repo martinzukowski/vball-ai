@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     # allowed to write repository contents, which repository_dispatch requires).
     worker_dispatch_repo: str | None = None
     worker_dispatch_token: SecretStr | None = None
+    # Split rally-analysis embeddings across this many machines (GitHub Actions helpers started
+    # with the dispatch token). 1 = one machine, no helpers.
+    embed_shards: int = Field(default=1, ge=1, le=16)
 
     @property
     def storage_configured(self) -> bool:

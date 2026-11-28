@@ -35,6 +35,10 @@ jobs:
       VBALL_S3_BUCKET: ${{ secrets.VBALL_S3_BUCKET }}
       VBALL_S3_ACCESS_KEY_ID: ${{ secrets.VBALL_S3_ACCESS_KEY_ID }}
       VBALL_S3_SECRET_ACCESS_KEY: ${{ secrets.VBALL_S3_SECRET_ACCESS_KEY }}
+      # Rally analysis: this machine + 3 helpers (embed.yml), started with the dispatch token.
+      VBALL_EMBED_SHARDS: "4"
+      VBALL_WORKER_DISPATCH_REPO: ${{ github.repository }}
+      VBALL_WORKER_DISPATCH_TOKEN: ${{ secrets.VBALL_WORKER_DISPATCH_TOKEN }}
       VBALL_WORKER_SCRATCH_DIR: ${{ github.workspace }}/../scratch
       HF_HOME: ${{ github.workspace }}/../hf
     steps:

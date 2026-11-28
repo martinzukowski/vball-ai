@@ -29,7 +29,7 @@ def tool(name: str) -> str:
     return path
 
 
-def displayed_size(video: Path) -> tuple[int, int]:
+def displayed_size(video: Path | str) -> tuple[int, int]:
     """Width/height after rotation (ffmpeg auto-rotates when decoding)."""
     out = subprocess.run(  # noqa: S603
         [
@@ -78,25 +78,34 @@ def _crop_box(
 
 
 def video_embeddings(
-    video: Path,
+    video: Path | str,
     play_area: Sequence[Sequence[float]] | None,
     batch: int = 64,
     on_progress: Callable[[float], None] | None = None,
     expected_steps: int | None = None,
+    start_step: int = 0,
+    n_steps: int | None = None,
 ) -> F32:
+    """Embeddings for steps ``start_step .. start_step + n_steps`` (default: to the end).
+    ``video`` may be a URL (e.g. a presigned link): ffmpeg then reads only the slice it needs.
+    Each step is embedded on its own, so slices concatenate to the same result as one pass."""
     width, height = displayed_size(video)
     x, y, cw, ch = _crop_box(play_area, width, height)
     vf = f"fps={1 / STEP:g},crop={cw}:{ch}:{x}:{y},scale={SIDE}:{SIDE}:flags=area"
+    seek = ["-ss", f"{start_step * STEP:.3f}"] if start_step else []
+    limit = ["-frames:v", str(n_steps)] if n_steps is not None else []
     proc = subprocess.Popen(  # noqa: S603
         [
             tool("ffmpeg"),
             "-v",
             "error",
+            *seek,
             "-i",
             str(video),
             "-an",
             "-vf",
             vf,
+            *limit,
             "-pix_fmt",
             "rgb24",
             "-f",
@@ -129,10 +138,10 @@ def video_embeddings(
             if on_progress and expected_steps:
                 on_progress(min(1.0, sum(len(o) for o in out) / expected_steps))
     proc.wait()
-    return np.concatenate(out)
+    return np.concatenate(out) if out else np.zeros((0, 384), np.float32)
 
 
-def audio_bands(video: Path, n_steps: int) -> F32:
+def audio_bands(video: Path | str, n_steps: int) -> F32:
     raw = subprocess.run(  # noqa: S603
         [
             tool("ffmpeg"),
