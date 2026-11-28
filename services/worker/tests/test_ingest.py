@@ -292,13 +292,23 @@ def fake_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
 
     import vball_ml.features as feats
 
-    def fake_extract(video: Any, play_area: Any, cache_dir: Any, **_: Any) -> Any:
-        n = int(probe(video).duration_s / 0.2)
-        x = np.zeros((n, 416), np.float32)
-        x[: n // 2, 0] = 3.0  # first half looks like "rally" to the test model
+    # The analysis embeds frames (video_embeddings) and adds audio bands (audio_bands); fake both
+    # so tests don't run DINOv2.
+    def fake_video(
+        video: Any, play_area: Any, start_step: int = 0, n_steps: int | None = None, **_: Any
+    ) -> Any:
+        total = int(probe(Path(video)).duration_s / 0.2)
+        n = total - start_step if n_steps is None else n_steps
+        x = np.zeros((n, 384), np.float32)
+        steps = np.arange(start_step, start_step + n)
+        x[steps < total // 2, 0] = 3.0  # first half looks like "rally" to the test model
         return x
 
-    monkeypatch.setattr(feats, "extract", fake_extract)
+    def fake_audio(video: Any, n_steps: int) -> Any:
+        return np.zeros((n_steps, 32), np.float32)
+
+    monkeypatch.setattr(feats, "video_embeddings", fake_video)
+    monkeypatch.setattr(feats, "audio_bands", fake_audio)
 
 
 def _active_run(engine: Engine, video_id: uuid.UUID) -> dict[str, Any]:
