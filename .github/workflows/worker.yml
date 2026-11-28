@@ -57,23 +57,23 @@ jobs:
           )
           echo "jobs=$n" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v5
-        if: steps.check.outputs.jobs != '0'
+        if: github.event_name != 'schedule' || steps.check.outputs.jobs != '0'
       - name: Install ffmpeg
-        if: steps.check.outputs.jobs != '0'
+        if: github.event_name != 'schedule' || steps.check.outputs.jobs != '0'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - uses: astral-sh/setup-uv@v6
-        if: steps.check.outputs.jobs != '0'
+        if: github.event_name != 'schedule' || steps.check.outputs.jobs != '0'
         with:
           enable-cache: true
       - name: Cache model weights
-        if: steps.check.outputs.jobs != '0'
+        if: github.event_name != 'schedule' || steps.check.outputs.jobs != '0'
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/../hf
           key: hf-dinov2-small-v1
       - name: Install worker
-        if: steps.check.outputs.jobs != '0'
+        if: github.event_name != 'schedule' || steps.check.outputs.jobs != '0'
         run: uv sync --frozen --no-dev --package vball-worker && mkdir -p "$VBALL_WORKER_SCRATCH_DIR"
       - name: Process the queue
-        if: steps.check.outputs.jobs != '0'
+        if: github.event_name != 'schedule' || steps.check.outputs.jobs != '0'
         run: uv run --no-sync python -m vball_worker --until-idle
