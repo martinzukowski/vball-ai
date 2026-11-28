@@ -26,7 +26,7 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M5 Heuristic rally detection in worker | Done locally | Play-area editor UI comes in M6 |
 | M6 Review/correction web UI | Done locally | Trim/add/delete, mark reviewed, play-area editor |
 | M7 Server-side highlights | Done locally | Export all/starred rallies as one MP4 |
-| M8 Deployment (Vercel, Modal, Supabase, storage) | Next | Owner: no card -> Backblaze B2 instead of R2; Vercel account exists (martinzukowski04@gmail.com) |
+| M8 Deployment (Vercel, Supabase, B2, GitHub Actions) | Built, waiting on owner sign-ups | docs/DEPLOY.md; Modal ruled out (no card = $1/month) |
 
 ## Log
 
@@ -251,7 +251,7 @@ New-PC notes: local Docker data (database, storage, models, features) does NOT t
 continue experiments on another PC: copy the 4 match videos, start the stack, re-ingest, and
 features are recomputed (~15 min/match on CPU), or just continue other milestones (M8 deploy).
 
-### Three-match model + honest agreement in the UI (2026-11-27) — RESUME HERE
+### Three-match model + honest agreement in the UI (2026-11-27)
 Why HJSC showed no rallies: production was still `2026-11-25.1` (TFC only, global
 normalisation), which predicts ~0 everywhere at HJSC. Fixed by shipping the cross-gym recipe.
 
@@ -281,6 +281,39 @@ normalisation), which predicts ~0 everywhere at HJSC. Fixed by shipping the cros
   rallies missed.
 - Local stack: always start compose with `--env-file .env` (without it the API exits on an
   empty `supabase_url`).
+
+### Fourth match, unseen-match test, M8 groundwork (2026-11-27/28) — RESUME HERE
+**Reference labels without Balltime's rally list.** `ml/eval/segment_reference_cut.py ORIGINAL
+CUT OUT.json` matches every 2 s of a Balltime cut to the original (fingerprints) and splits where
+the time offset jumps. Balltime's export pads each rally (-0.4 s start, +2.8 s end vs its list):
+measured on HJSC G2S1 (45/45), confirmed on TFC Dino/Carlos without retuning (46/46, F1 1.000,
+median 0.2/0.6 s). So the owner only needs to send the original + Balltime's cut.
+
+**Data:** 4th training match HJSC "Adam vs Big Chillin G2 S2" (50 rallies;
+`data/features/hjsc2.full.npz`, made with the app's 720p proxy settings; not in the app).
+Test-only match TFC "Dino vs Harry Xu Seeding G2 S2" (45 rallies, app video e3fd973f…), never
+used for training. `vball_worker.dev_upload PATH` adds a local file to the app like a browser
+upload.
+
+| Model | Harry Xu (unseen) F1@0.5 vs Balltime |
+|---|---|
+| 2026-11-27.1 (3 matches) | 0.841 (43 rallies; offline score = app, so results are reproducible) |
+| **2026-11-27.2 (4 matches, now production locally)** | **0.870** (47 rallies, 40/45 found) |
+
+4-match leave-one-gym-out: mean 0.841 (tfc 0.93, hjsc 0.81, tfc2 0.96, hjsc2 0.67). Main error
+on Harry Xu: back-to-back rallies merged (quick next serve). Next ML step: fix that
+(between-rally gaps), judged leave-one-gym-out and on Harry Xu; more gyms remain the biggest
+lever. Promotion rule used: train with `train_production --out`, score the unseen test match
+offline, `matches publish` only if better.
+
+**M8 (deploy) groundwork:** Modal ruled out (without a card it gives $1/month, not $30). Plan:
+web + API on Vercel (`apps/web`, `deploy/api`), Supabase DB, Backblaze B2 storage, video
+processing on GitHub Actions (`.github/workflows/worker.yml`, started by the API via
+`repository_dispatch` + half-hourly safety net; `python -m vball_worker --until-idle`).
+Worker runs on CPU (~15–20 min/match). Owner steps: docs/DEPLOY.md. The Vercel entry
+(`deploy/api/api/index.py`) runs FastAPI startup on the first request if the runtime skips
+lifespan (tested locally with lifespan off). Speed ideas for later: decode once for proxy +
+embeddings; GPU if a free no-card option appears.
 
 ## Decisions to remember
 

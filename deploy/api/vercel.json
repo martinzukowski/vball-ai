@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "rm -rf _src && mkdir _src && cp -r ../../packages/vball_core/src/vball_core ../../services/api/src/vball_api _src/",
+  "outputDirectory": "public",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+}

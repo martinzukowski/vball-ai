@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.orm import Session
 
 from vball_api.deps import CurrentUser, DbSession, ensure_owner
+from vball_api.wake import WakeWorker
 from vball_core import jobs, pipelines
 from vball_core.db.enums import ExportStatus, JobErrorCode, JobKind, JobState, VideoStatus
 from vball_core.db.models import (
@@ -433,7 +434,7 @@ async def presign_parts(
 
 @router.post("/{video_id}/upload/complete", response_model=VideoOut, operation_id="completeUpload")
 async def complete_upload(
-    video_id: uuid.UUID, user: CurrentUser, db: DbSession, storage: Storage
+    video_id: uuid.UUID, user: CurrentUser, db: DbSession, storage: Storage, wake: WakeWorker
 ) -> VideoOut:
     video = await load_owned(db, user, video_id)  # row lock serialises concurrent completes
     upload = await load_upload(db, video)
@@ -475,6 +476,7 @@ async def complete_upload(
     video.status = VideoStatus.UPLOADED
     await enqueue_ingest(db, video)
     await db.commit()
+    await wake()
     await db.refresh(video)
     log.info("upload_completed", video_id=str(video.id), size=size)
     return await video_out(db, storage, video)
@@ -513,7 +515,7 @@ async def delete_video(
 
 @router.post("/{video_id}/retry", response_model=VideoOut, operation_id="retryProcessing")
 async def retry_processing(
-    video_id: uuid.UUID, user: CurrentUser, db: DbSession, storage: Storage
+    video_id: uuid.UUID, user: CurrentUser, db: DbSession, storage: Storage, wake: WakeWorker
 ) -> VideoOut:
     """Re-run ingest for a video whose processing failed (needs the original upload)."""
     video = await load_owned(db, user, video_id)
@@ -533,6 +535,7 @@ async def retry_processing(
     video.error_message = None
     await enqueue_ingest(db, video, {"retry": int(previous or 0)})
     await db.commit()
+    await wake()
     await db.refresh(video)
     return await video_out(db, storage, video)
 
@@ -742,24 +745,26 @@ async def get_rallies(video_id: uuid.UUID, user: CurrentUser, db: DbSession) -> 
 
 @router.put("/{video_id}/play-area", response_model=RalliesOut, operation_id="setPlayArea")
 async def set_play_area(
-    video_id: uuid.UUID, body: PlayAreaIn, user: CurrentUser, db: DbSession
+    video_id: uuid.UUID, body: PlayAreaIn, user: CurrentUser, db: DbSession, wake: WakeWorker
 ) -> RalliesOut:
     """Save the play area and re-run rally detection with it."""
     video = await load_owned(db, user, video_id)
     video.play_area = body.points
     await enqueue_analysis(db, video, 0)
     await db.commit()
+    await wake()
     return await get_rallies(video_id, user, db)
 
 
 @router.post("/{video_id}/analyze", response_model=RalliesOut, operation_id="analyzeVideo")
 async def analyze_video(
-    video_id: uuid.UUID, body: AnalyzeIn, user: CurrentUser, db: DbSession
+    video_id: uuid.UUID, body: AnalyzeIn, user: CurrentUser, db: DbSession, wake: WakeWorker
 ) -> RalliesOut:
     """Re-run rally detection, e.g. with a different sensitivity (-5 fewer .. 5 more)."""
     video = await load_owned(db, user, video_id)
     await enqueue_analysis(db, video, body.sensitivity)
     await db.commit()
+    await wake()
     return await get_rallies(video_id, user, db)
 
 

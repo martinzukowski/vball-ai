@@ -1,0 +1,79 @@
+name: Worker
+
+# Processes VBall's job queue (ingest, rally analysis, highlight exports) and exits when it is
+# empty. Started by the API right after it queues a job (repository_dispatch "process"), plus a
+# periodic safety net that picks up anything missed (e.g. a run that was cancelled mid-job).
+# Configuration: repository secrets VBALL_* (see docs/DEPLOY.md).
+
+on:
+  repository_dispatch:
+    types: [process]
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
+
+permissions:
+  contents: read
+
+# One worker at a time. A dispatch that arrives during a run waits as the single pending run,
+# so a job queued while the current run finishes is still picked up.
+concurrency:
+  group: worker
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      VBALL_ENV: production
+      VBALL_LOG_JSON: "true"
+      VBALL_DATABASE_URL: ${{ secrets.VBALL_DATABASE_URL }}
+      VBALL_SUPABASE_URL: ${{ secrets.VBALL_SUPABASE_URL }}
+      VBALL_S3_ENDPOINT_URL: ${{ secrets.VBALL_S3_ENDPOINT_URL }}
+      VBALL_S3_REGION: ${{ secrets.VBALL_S3_REGION }}
+      VBALL_S3_BUCKET: ${{ secrets.VBALL_S3_BUCKET }}
+      VBALL_S3_ACCESS_KEY_ID: ${{ secrets.VBALL_S3_ACCESS_KEY_ID }}
+      VBALL_S3_SECRET_ACCESS_KEY: ${{ secrets.VBALL_S3_SECRET_ACCESS_KEY }}
+      VBALL_WORKER_SCRATCH_DIR: ${{ github.workspace }}/../scratch
+      HF_HOME: ${{ github.workspace }}/../hf
+    steps:
+      - name: Anything to do?
+        id: check
+        if: github.event_name == 'schedule'
+        run: |
+          python3 -m pip install -q --user --break-system-packages "psycopg[binary]>=3.2"
+          n=$(python3 - <<'EOF'
+          import os, sys, psycopg
+          url = os.environ.get("VBALL_DATABASE_URL", "").replace("postgresql+psycopg://", "postgresql://")
+          if not url:  # not deployed yet (no secrets): nothing to do
+              print(0); sys.exit()
+          with psycopg.connect(url) as c:
+              print(c.execute(
+                  "select count(*) from processing_jobs where (state = 'queued' and run_after <= now()"
+                  " and attempt < max_attempts and not cancel_requested)"
+                  " or (state = 'running' and lease_expires_at < now())").fetchone()[0])
+          EOF
+          )
+          echo "jobs=$n" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        if: steps.check.outputs.jobs != '0'
+      - name: Install ffmpeg
+        if: steps.check.outputs.jobs != '0'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - uses: astral-sh/setup-uv@v6
+        if: steps.check.outputs.jobs != '0'
+        with:
+          enable-cache: true
+      - name: Cache model weights
+        if: steps.check.outputs.jobs != '0'
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/../hf
+          key: hf-dinov2-small-v1
+      - name: Install worker
+        if: steps.check.outputs.jobs != '0'
+        run: uv sync --frozen --no-dev --package vball-worker && mkdir -p "$VBALL_WORKER_SCRATCH_DIR"
+      - name: Process the queue
+        if: steps.check.outputs.jobs != '0'
+        run: uv run --no-sync python -m vball_worker --until-idle

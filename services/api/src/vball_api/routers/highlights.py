@@ -14,6 +14,7 @@ from sqlalchemy import select
 
 from vball_api.deps import CurrentUser, DbSession, ensure_owner
 from vball_api.routers.videos import Storage, _effective, load_owned
+from vball_api.wake import WakeWorker
 from vball_core import jobs, pipelines
 from vball_core.db.enums import ExportStatus, JobKind, JobState
 from vball_core.db.models import HighlightExport, ProcessingJob
@@ -99,7 +100,12 @@ async def export_out(db: DbSession, storage: Storage, ex: HighlightExport) -> Ex
     operation_id="createHighlightExport",
 )
 async def create_export(
-    video_id: uuid.UUID, body: CreateExport, user: CurrentUser, db: DbSession, storage: Storage
+    video_id: uuid.UUID,
+    body: CreateExport,
+    user: CurrentUser,
+    db: DbSession,
+    storage: Storage,
+    wake: WakeWorker,
 ) -> ExportOut:
     video = await load_owned(db, user, video_id)
     if not video.proxy_key or not video.duration_s:
@@ -136,6 +142,7 @@ async def create_export(
 
     ex.job_id = await db.run_sync(queue)
     await db.commit()
+    await wake()
     await db.refresh(ex)
     return await export_out(db, storage, ex)
 
