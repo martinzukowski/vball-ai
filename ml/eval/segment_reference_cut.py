@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
-from align_reference_cut import FPS, fingerprints  # noqa: E402
+from align_reference_cut import FPS, fingerprints
 
 WIN = 2 * FPS  # frames per matching window
 MIN_LEN_S = 2.0
@@ -99,7 +99,8 @@ def main() -> None:
     ap.add_argument("cut")
     ap.add_argument("out")
     ap.add_argument("--check")
-    ap.add_argument("--pad", default="-0.4,2.8", help="trim at clip start,end (s); default = Balltime export padding, measured on 2 matches")
+    # Default: Balltime export padding, measured on HJSC G2S1, confirmed on TFC Dino/Carlos.
+    ap.add_argument("--pad", default="-0.4,2.8", help="seconds to trim at clip start,end")
     a = ap.parse_args()
     S, C = fingerprints(a.original), fingerprints(a.cut)
     print("frames: source", len(S), "cut", len(C))

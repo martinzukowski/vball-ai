@@ -44,7 +44,7 @@ def main():
     print("frames: source", len(S), "cut", len(C))
     tosec = lambda m: int(m.split(":")[0]) * 60 + int(m.split(":")[1])
     bt = [tuple(map(tosec, p.split("-"))) for p in open(bt_file).read().split()]
-    res, last = [], 0
+    res = []
     for k, (a, b) in enumerate(bt, 1):
         # use the middle of the clip (avoid fades / list rounding at the edges)
         i0, i1 = int((a + 1) * FPS), int((b - 1) * FPS)
