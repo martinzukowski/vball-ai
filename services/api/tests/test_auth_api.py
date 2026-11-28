@@ -150,3 +150,43 @@ def test_ensure_owner() -> None:
 def test_deployed_environments_require_supabase(env: Environment) -> None:
     with pytest.raises(ValidationError, match="VBALL_SUPABASE_URL"):
         Settings(env=env, database_url=SecretStr("postgresql+psycopg://u:p@h:5432/d"))
+
+
+@pytest.mark.db
+async def test_allowlist_blocks_uninvited_accounts(
+    migrated_url: str, jwks: MockJwks, key: SigningKey
+) -> None:
+    s = settings_for(migrated_url)
+    s.allowed_emails = "Owner@Example.com, friend@example.com"
+    app = create_app(s, http_client=jwks.client())
+    stranger = uuid.uuid4()
+    async for c in _client(app):
+        ok = await c.get("/me", headers=bearer(token(key, email="owner@example.com")))
+        assert ok.status_code == 200, ok.text
+        friend = await c.get("/me", headers=bearer(token(key, email="FRIEND@example.com")))
+        assert friend.status_code == 200
+        r = await c.get("/me", headers=bearer(token(key, sub=str(stranger))))  # player@...
+        assert r.status_code == 403
+        assert (
+            await c.get("/videos", headers=bearer(token(key, sub=str(stranger))))
+        ).status_code == 403
+    engine = create_engine(migrated_url)
+    try:
+        with engine.connect() as conn:
+            n = conn.execute(
+                text("SELECT count(*) FROM profiles WHERE id = :id"), {"id": stranger}
+            ).scalar_one()
+    finally:
+        engine.dispose()
+    assert n == 0  # no profile row for uninvited accounts
+
+
+def test_docs_hidden_when_deployed() -> None:
+    s = Settings(
+        env=Environment.PRODUCTION,
+        database_url=SecretStr("postgresql+psycopg://u:p@localhost/db"),
+        supabase_url=HttpUrl(SUPABASE_URL),
+    )
+    app = create_app(s)
+    assert app.docs_url is None
+    assert app.openapi_url is None

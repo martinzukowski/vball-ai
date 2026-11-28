@@ -68,7 +68,16 @@ def create_app(
             await engine.dispose()
             log.info("api_stopped")
 
-    app = FastAPI(title="VBall API", version=__version__, lifespan=lifespan)
+    # Interactive docs only outside production (the schema isn't secret, but no need to serve it).
+    deployed = settings.env in (Environment.STAGING, Environment.PRODUCTION)
+    app = FastAPI(
+        title="VBall API",
+        version=__version__,
+        lifespan=lifespan,
+        docs_url=None if deployed else "/docs",
+        redoc_url=None if deployed else "/redoc",
+        openapi_url=None if deployed else "/openapi.json",
+    )
     app.state.settings = settings
     app.add_middleware(
         CORSMiddleware,

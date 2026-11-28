@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # shared secret. Optional only in local/test environments; required when deployed.
     supabase_url: HttpUrl | None = None
     jwt_audience: str = "authenticated"
+    # Invite-only: comma-separated emails allowed to use the API (case-insensitive). Empty =
+    # anyone with a valid Supabase account (fine locally; set it when deployed).
+    allowed_emails: str = ""
     jwks_cache_ttl_s: int = Field(default=600, ge=30, le=86400)
 
     # S3-compatible object storage (Cloudflare R2 in production, SeaweedFS locally).
@@ -79,9 +82,6 @@ class Settings(BaseSettings):
     # allowed to write repository contents, which repository_dispatch requires).
     worker_dispatch_repo: str | None = None
     worker_dispatch_token: SecretStr | None = None
-    # Split rally-analysis embeddings across this many machines (GitHub Actions helpers started
-    # with the dispatch token). 1 = one machine, no helpers.
-    embed_shards: int = Field(default=1, ge=1, le=16)
 
     @property
     def storage_configured(self) -> bool:
@@ -98,6 +98,10 @@ class Settings(BaseSettings):
         if self.supabase_url is None:
             return None
         return str(self.supabase_url).rstrip("/") + "/auth/v1"
+
+    @property
+    def allowed_email_set(self) -> frozenset[str]:
+        return frozenset(e.strip().lower() for e in self.allowed_emails.split(",") if e.strip())
 
     @property
     def cors_origin_list(self) -> list[str]:

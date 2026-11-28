@@ -93,15 +93,11 @@ def learned_rallies(
     duration: float,
     storage: ObjectStorage,
     reuse_key: str | None = None,
-    settings: Settings | None = None,
-    proxy_key: str | None = None,
-    out_prefix: str | None = None,
 ) -> list[dict[str, Any]]:
     import numpy as np
 
     from vball_ml.features import audio_bands, video_embeddings
     from vball_ml.rally_model import STEP
-    from vball_worker.shards import sharded_embeddings
 
     feat_file = work / "learned_features.npz"
     x = None
@@ -115,27 +111,12 @@ def learned_rallies(
             x = None
     if x is None:
         with ctx.stage("embeddings"):
-            progress = lambda p: ctx.progress(0.05 + 0.8 * p)  # noqa: E731
-            vid = None
-            if settings is not None and proxy_key and out_prefix:
-                vid = sharded_embeddings(
-                    settings,
-                    storage,
-                    proxy,
-                    proxy_key,
-                    play_area,
-                    int(duration / STEP) + 1,
-                    out_prefix,
-                    video_embeddings,
-                    on_progress=progress,
-                )
-            if vid is None:
-                vid = video_embeddings(
-                    proxy,
-                    play_area,
-                    on_progress=progress,
-                    expected_steps=int(duration / STEP) + 1,
-                )
+            vid = video_embeddings(
+                proxy,
+                play_area,
+                on_progress=lambda p: ctx.progress(0.05 + 0.8 * p),
+                expected_steps=int(duration / STEP) + 1,
+            )
             x = np.concatenate([vid, audio_bands(proxy, len(vid))], axis=1).astype(np.float32)
         # Keep the features so this video can become training data without re-extracting.
         np.savez_compressed(feat_file, x=x)
@@ -196,9 +177,6 @@ def run_analyze(ctx: JobContext, settings: Settings, storage: ObjectStorage) -> 
                     duration,
                     storage,
                     reuse_key,
-                    settings,
-                    proxy_key,
-                    f"artifacts/{video.owner_id}/{video.id}/{run_id}",
                 )
                 feat_file = work / "learned_features.npz"
                 if reuse_key:

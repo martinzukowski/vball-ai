@@ -51,8 +51,14 @@ async def get_claims(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 
 
-async def get_current_user(claims: Annotated[Claims, Depends(get_claims)], db: DbSession) -> Claims:
-    """Verified user; ensures a profile row exists (created on first authenticated request)."""
+async def get_current_user(
+    request: Request, claims: Annotated[Claims, Depends(get_claims)], db: DbSession
+) -> Claims:
+    """Verified, invited user; ensures a profile row exists (created on first request).
+    With an allowlist set, a valid account whose email isn't on it gets 403 and no profile."""
+    allowed = request.app.state.settings.allowed_email_set
+    if allowed and (claims.email or "").lower() not in allowed:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This account hasn't been invited to VBall.")
     await db.execute(
         insert(Profile).values(id=claims.user_id).on_conflict_do_nothing(index_elements=["id"])
     )
