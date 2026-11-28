@@ -50,8 +50,11 @@ class Worker:
         storage: ObjectStorage | None = None,
         worker_id: str | None = None,
         heartbeat_interval_s: float = HEARTBEAT_INTERVAL_S,
+        kinds: list[JobKind] | None = None,
     ) -> None:
         self.settings = settings
+        # Job kinds this worker takes (e.g. a GPU worker only runs analysis). Default: all.
+        self.kinds = kinds or list(HANDLERS)
         self.engine = engine or create_engine(settings.database_dsn(), pool_pre_ping=True)
         self.storage = storage or ObjectStorage(settings)
         self.worker_id = worker_id or default_worker_id()
@@ -93,7 +96,7 @@ class Worker:
     def run_once(self) -> bool:
         """Claim and process one job. Returns False if there was nothing to do."""
         with self.engine.begin() as conn:
-            job = jobs.claim(conn, self.worker_id, kinds=list(HANDLERS))
+            job = jobs.claim(conn, self.worker_id, kinds=self.kinds)
             if job is not None and job.kind is JobKind.INGEST:
                 conn.execute(
                     update(Video)

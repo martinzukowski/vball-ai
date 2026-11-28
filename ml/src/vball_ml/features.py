@@ -106,9 +106,12 @@ def video_embeddings(
         stdout=subprocess.PIPE,
     )
     processor = AutoImageProcessor.from_pretrained(MODEL_ID)
-    model = AutoModel.from_pretrained(MODEL_ID).eval()
-    mean = torch.tensor(processor.image_mean).view(1, 3, 1, 1)
-    std = torch.tensor(processor.image_std).view(1, 3, 1, 1)
+    # A GPU when there is one (cloud worker); same fp32 model, so results match the CPU up to
+    # rounding.
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = AutoModel.from_pretrained(MODEL_ID).eval().to(device)
+    mean = torch.tensor(processor.image_mean).view(1, 3, 1, 1).to(device)
+    std = torch.tensor(processor.image_std).view(1, 3, 1, 1).to(device)
     out: list[F32] = []
     frame_bytes = SIDE * SIDE * 3
     assert proc.stdout is not None
@@ -119,10 +122,10 @@ def video_embeddings(
                 break
             n = len(buf) // frame_bytes
             arr = np.frombuffer(buf[: n * frame_bytes], np.uint8).reshape(n, SIDE, SIDE, 3)
-            t = torch.from_numpy(arr.copy()).permute(0, 3, 1, 2).float() / 255.0
+            t = torch.from_numpy(arr.copy()).to(device).permute(0, 3, 1, 2).float() / 255.0
             t = (t - mean) / std
             cls = model(pixel_values=t).last_hidden_state[:, 0]
-            out.append(cls.numpy().astype(np.float32))
+            out.append(cls.cpu().numpy().astype(np.float32))
             if on_progress and expected_steps:
                 on_progress(min(1.0, sum(len(o) for o in out) / expected_steps))
     proc.wait()

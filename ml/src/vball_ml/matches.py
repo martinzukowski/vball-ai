@@ -252,6 +252,21 @@ def cmd_retrain(version: str, seeds: int = 3) -> None:
         print(f"registered {version} as {'production' if promote else 'candidate'}")
 
 
+def cmd_publish(path: str, version: str) -> None:
+    """Upload a saved model file to the configured storage and make it the production model in
+    the configured database (e.g. the cloud deployment). The model's own metadata (recipe,
+    training matches, held-out scores) is registered with it."""
+    from vball_ml.rally_model import load_bundle
+    from vball_ml.train_rally import register
+
+    meta: dict[str, Any] = dict(load_bundle(path).meta)
+    meta.setdefault("extractor", EXTRACTOR_VERSION)
+    meta.setdefault("matches", len(meta.get("trained_on", [])) or 1)
+    digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    register(path, version, digest, meta)
+    print(f"published {version} ({digest[:12]}) as production")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -262,11 +277,16 @@ def main() -> None:
     r = sub.add_parser("retrain")
     r.add_argument("--version", required=True)
     r.add_argument("--seeds", type=int, default=3)
+    pub = sub.add_parser("publish")
+    pub.add_argument("path")
+    pub.add_argument("--version", required=True)
     a = ap.parse_args()
     if a.cmd == "score":
         cmd_score(a.video_id, a.ref)
     elif a.cmd == "import":
         cmd_import(a.video_id, a.ref)
+    elif a.cmd == "publish":
+        cmd_publish(a.path, a.version)
     else:
         cmd_retrain(a.version, a.seeds)
 
