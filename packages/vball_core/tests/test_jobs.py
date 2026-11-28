@@ -239,3 +239,20 @@ def test_runnable_count(clean: Engine) -> None:
         assert jobs.runnable_count(c) == 2
         jobs.claim(c, "w", lease=timedelta(minutes=1))
         assert jobs.runnable_count(c) == 1
+
+
+def test_defer_requeues_without_using_an_attempt(clean: Engine) -> None:
+    from datetime import UTC, datetime
+
+    with clean.begin() as c:
+        job_id = enqueue_one(c, max_attempts=2)
+        jobs.claim(c, "w")
+        until = datetime.now(UTC) + timedelta(hours=1)
+        jobs.defer(c, job_id, "w", until, JobErrorCode.TRANSIENT, "storage cap")
+        row = job_row(c, job_id)
+        assert row["state"] == "queued"
+        assert row["attempt"] == 0
+        assert row["error_message"] == "storage cap"
+        assert jobs.claim(c, "w") is None  # waits until `until`
+        with pytest.raises(jobs.LeaseLostError):
+            jobs.defer(c, job_id, "w", until, JobErrorCode.TRANSIENT, "not held")

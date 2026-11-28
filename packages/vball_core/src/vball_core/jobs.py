@@ -19,7 +19,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from sqlalchemy import Connection, Table, and_, func, or_, select, update
@@ -254,6 +254,33 @@ def fail(
         )
     )
     return JobState.FAILED
+
+
+def defer(
+    conn: Connection,
+    job_id: uuid.UUID,
+    worker_id: str,
+    until: datetime,
+    code: JobErrorCode,
+    message: str,
+) -> None:
+    """Put a job back in the queue until ``until`` without using up an attempt (the outside
+    world said "not now", e.g. a storage provider's daily download cap)."""
+    if conn.execute(select(JOBS.c.id).where(_owned(job_id, worker_id))).first() is None:
+        raise LeaseLostError(f"job {job_id} is no longer held by {worker_id}")
+    conn.execute(
+        update(JOBS)
+        .where(JOBS.c.id == job_id)
+        .values(
+            state=JobState.QUEUED.value,
+            run_after=until,
+            attempt=func.greatest(JOBS.c.attempt - 1, 0),
+            lease_owner=None,
+            lease_expires_at=None,
+            error_code=code.value,
+            error_message=message[:2000],
+        )
+    )
 
 
 def sweep(conn: Connection) -> tuple[int, int]:

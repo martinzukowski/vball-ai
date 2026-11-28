@@ -11,6 +11,7 @@ import socket
 import subprocess
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
 from botocore.exceptions import BotoCoreError, ClientError
 from sqlalchemy import Engine, and_, create_engine, exists, update
@@ -128,6 +129,25 @@ class Worker:
         return True
 
     def _record_failure(self, job: jobs.ClaimedJob, exc: Exception) -> None:
+        if storage_refused(exc):
+            # Usually the storage provider's free daily download cap (Backblaze B2 resets it at
+            # 00:00 GMT): wait for the reset instead of burning the job's attempts.
+            until = next_storage_reset()
+            log.warning("storage_refused_deferring", job_id=str(job.id), until=until.isoformat())
+            try:
+                with self.engine.begin() as conn:
+                    jobs.defer(
+                        conn,
+                        job.id,
+                        self.worker_id,
+                        until,
+                        JobErrorCode.TRANSIENT,
+                        "Storage's free daily download limit is used up; processing continues "
+                        "automatically after it resets (midnight GMT).",
+                    )
+            except jobs.LeaseLostError:
+                log.warning("failure_not_recorded_lease_lost", job_id=str(job.id))
+            return
         code, retryable, message = classify(exc)
         log.error(
             "job_failed",
@@ -177,6 +197,20 @@ class Worker:
             except Exception as exc:  # DB down etc.: back off, keep the process alive
                 log.error("worker_loop_error", error=type(exc).__name__, detail=str(exc)[:300])
                 time.sleep(10)
+
+
+def storage_refused(exc: Exception) -> bool:
+    """Storage answered 403 / AccessDenied (B2: download or transaction cap reached)."""
+    if not isinstance(exc, ClientError):
+        return False
+    err = exc.response.get("Error", {})
+    status = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+    return status == 403 or err.get("Code") in ("403", "AccessDenied")
+
+
+def next_storage_reset(now: datetime | None = None) -> datetime:
+    now = now or datetime.now(UTC)
+    return (now + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
 
 
 def classify(exc: Exception) -> tuple[JobErrorCode, bool, str]:
