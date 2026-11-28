@@ -1,16 +1,15 @@
 name: Worker
 
-# Processes VBall's job queue (ingest, rally analysis, highlight exports) and exits when it is
-# empty. Started by the API right after it queues a job (repository_dispatch "process"), plus a
-# periodic safety net that picks up anything missed (e.g. a run that was cancelled mid-job).
+# Backup worker (CPU only). Video processing normally runs on Modal (infra/modal/vball_app.py);
+# this processes VBall's job queue on a GitHub machine and exits when it is empty. It runs only
+# when started by hand (Actions > Worker > Run workflow) or by the API when no Modal wake URL is
+# configured (repository_dispatch "process"). No schedule, so it never competes with Modal.
 # Configuration: repository secrets VBALL_* (see docs/DEPLOY.md).
 
 on:
   repository_dispatch:
     types: [process]
   workflow_dispatch:
-  schedule:
-    - cron: "*/30 * * * *"
 
 permissions:
   contents: read

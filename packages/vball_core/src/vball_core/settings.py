@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     max_video_duration_s: int = Field(default=4 * 3600, gt=0)
     worker_poll_interval_s: float = Field(default=3.0, gt=0)
     worker_scratch_dir: str | None = None
+    # Deployed on Modal: the API calls the `wake` endpoint of infra/modal/vball_app.py with this
+    # bearer token. Takes precedence over the GitHub dispatch below.
+    worker_wake_url: str | None = None
+    worker_wake_token: SecretStr | None = None
     # Deployed: the API starts the GitHub Actions worker ("owner/repo" + a fine-grained token
     # allowed to write repository contents, which repository_dispatch requires).
     worker_dispatch_repo: str | None = None
