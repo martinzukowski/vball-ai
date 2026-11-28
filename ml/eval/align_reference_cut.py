@@ -38,46 +38,51 @@ def fingerprints(path):
     return x
 
 
-src, cut, bt_file, out = sys.argv[1:5]
-S, C = fingerprints(src), fingerprints(cut)
-print("frames: source", len(S), "cut", len(C))
-tosec = lambda m: int(m.split(":")[0]) * 60 + int(m.split(":")[1])
-bt = [tuple(map(tosec, p.split("-"))) for p in open(bt_file).read().split()]
-res, last = [], 0
-for k, (a, b) in enumerate(bt, 1):
-    # use the middle of the clip (avoid fades / list rounding at the edges)
-    i0, i1 = int((a + 1) * FPS), int((b - 1) * FPS)
-    if i1 - i0 < 5:
-        i0, i1 = int(a * FPS), int(b * FPS)
-    Q = C[i0:i1]
-    m = len(Q)
-    # sliding mean correlation of Q against S
-    win = np.lib.stride_tricks.sliding_window_view(S, (m, S.shape[1]))[:, 0]
-    score = np.einsum("nmd,md->n", win, Q) / (m * S.shape[1])
-    o = int(np.argmax(score))
-    best = float(score[o])
-    second = float(np.max(np.delete(score, range(max(0, o - 25), o + 25))))
-    offset = o / FPS - i0 / FPS  # source_time = cut_time + offset
-    res.append(
-        {
-            "rally": k,
-            "cut_start": a,
-            "cut_end": b,
-            "start": round(a + offset, 1),
-            "end": round(b + offset, 1),
-            "match": round(best, 3),
-            "runner_up": round(second, 3),
-        }
+def main():
+    src, cut, bt_file, out = sys.argv[1:5]
+    S, C = fingerprints(src), fingerprints(cut)
+    print("frames: source", len(S), "cut", len(C))
+    tosec = lambda m: int(m.split(":")[0]) * 60 + int(m.split(":")[1])
+    bt = [tuple(map(tosec, p.split("-"))) for p in open(bt_file).read().split()]
+    res, last = [], 0
+    for k, (a, b) in enumerate(bt, 1):
+        # use the middle of the clip (avoid fades / list rounding at the edges)
+        i0, i1 = int((a + 1) * FPS), int((b - 1) * FPS)
+        if i1 - i0 < 5:
+            i0, i1 = int(a * FPS), int(b * FPS)
+        Q = C[i0:i1]
+        m = len(Q)
+        # sliding mean correlation of Q against S
+        win = np.lib.stride_tricks.sliding_window_view(S, (m, S.shape[1]))[:, 0]
+        score = np.einsum("nmd,md->n", win, Q) / (m * S.shape[1])
+        o = int(np.argmax(score))
+        best = float(score[o])
+        second = float(np.max(np.delete(score, range(max(0, o - 25), o + 25))))
+        offset = o / FPS - i0 / FPS  # source_time = cut_time + offset
+        res.append(
+            {
+                "rally": k,
+                "cut_start": a,
+                "cut_end": b,
+                "start": round(a + offset, 1),
+                "end": round(b + offset, 1),
+                "match": round(best, 3),
+                "runner_up": round(second, 3),
+            }
+        )
+    mono = all(res[i]["start"] > res[i - 1]["start"] for i in range(1, len(res)))
+    print(
+        "monotonic:",
+        mono,
+        "| weakest match",
+        min(r["match"] for r in res),
+        "| best runner-up",
+        max(r["runner_up"] for r in res),
     )
-mono = all(res[i]["start"] > res[i - 1]["start"] for i in range(1, len(res)))
-print(
-    "monotonic:",
-    mono,
-    "| weakest match",
-    min(r["match"] for r in res),
-    "| best runner-up",
-    max(r["runner_up"] for r in res),
-)
-json.dump(res, open(out, "w"), indent=1)
-for r in res[:6] + res[-3:]:
-    print(r)
+    json.dump(res, open(out, "w"), indent=1)
+    for r in res[:6] + res[-3:]:
+        print(r)
+
+
+if __name__ == "__main__":
+    main()

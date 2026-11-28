@@ -27,9 +27,10 @@ MATCHES = {
     "tfc": "tfc_playoffs_t2_finals_s2",
     "hjsc": "hjsc_adam_vs_bigchillin_g2s1",
     "tfc2": "tfc_dino_vs_carlos_t2_g1s1",
+    "hjsc2": "hjsc_adam_vs_bigchillin_g2s2",
 }
 # Venue of each match: "venue" holdout never trains on the test match's venue.
-VENUES = {"tfc": "TFC", "tfc2": "TFC", "hjsc": "HJSC"}
+VENUES = {"tfc": "TFC", "tfc2": "TFC", "hjsc": "HJSC", "hjsc2": "HJSC"}
 
 
 @dataclass
