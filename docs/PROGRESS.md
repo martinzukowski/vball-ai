@@ -26,7 +26,7 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M5 Heuristic rally detection in worker | Done locally | Play-area editor UI comes in M6 |
 | M6 Review/correction web UI | Done locally | Trim/add/delete, mark reviewed, play-area editor |
 | M7 Server-side highlights | Done locally | Export all/starred rallies as one MP4 |
-| M8 Deployment (Vercel, Supabase, B2, GitHub Actions) | Built, waiting on owner sign-ups | docs/DEPLOY.md; Modal ruled out (no card = $1/month) |
+| M8 Deployment (Vercel, Supabase, B2, GitHub Actions) | Deployed 2026-11-28; phone upload test pending | web https://vball-ai-jtsd.vercel.app, API https://vball-ai.vercel.app; docs/DEPLOY.md |
 
 ## Log
 
@@ -305,6 +305,15 @@ on Harry Xu: back-to-back rallies merged (quick next serve). Next ML step: fix t
 (between-rally gaps), judged leave-one-gym-out and on Harry Xu; more gyms remain the biggest
 lever. Promotion rule used: train with `train_production --out`, score the unseen test match
 offline, `matches publish` only if better.
+
+**M8 deployed (2026-11-28):** web https://vball-ai-jtsd.vercel.app (Vercel project
+`vball-ai-jtsd`, root apps/web), API https://vball-ai.vercel.app (Vercel project `vball-ai`, root
+deploy/api; /readyz checks database + storage), Supabase DB migrated to 0005, B2 bucket
+`vball-mz-2026` (us-east-005, CORS for the web URL; lifecycle must be "keep only the last
+version"), GitHub Actions secrets set, rally model 2026-11-27.2 published to production.
+Owner's settings live in git-ignored infra/production.env. Verified: API health/readiness,
+CORS from the web origin, worker run connects to the DB and exits idle. Fixed on the way: worker
+steps were skipped on dispatched runs ('' == '0' in Actions expressions).
 
 **M8 (deploy) groundwork:** Modal ruled out (without a card it gives $1/month, not $30). Plan:
 web + API on Vercel (`apps/web`, `deploy/api`), Supabase DB, Backblaze B2 storage, video
