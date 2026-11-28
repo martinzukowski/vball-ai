@@ -25,7 +25,10 @@ try:
 except ImportError:  # deploying from an environment without FastAPI; the container has it
     Request = Any  # type: ignore[misc,assignment]
 
-ROOT = Path(__file__).resolve().parents[2]
+# Repo root, used only when building images on the laptop. Inside a container the file runs
+# as /root/vball_app.py (no repo around it), so fall back instead of failing on import.
+_HERE = Path(__file__).resolve()
+ROOT = _HERE.parents[2] if len(_HERE.parents) > 2 else _HERE.parent
 SRC = {
     "packages/vball_core/src": "/app/core",
     "services/worker/src": "/app/worker",
