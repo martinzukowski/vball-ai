@@ -282,7 +282,7 @@ normalisation), which predicts ~0 everywhere at HJSC. Fixed by shipping the cros
 - Local stack: always start compose with `--env-file .env` (without it the API exits on an
   empty `supabase_url`).
 
-### Fourth match, unseen-match test, M8 groundwork (2026-11-27/28) — RESUME HERE
+### Fourth match, unseen-match test, M8 groundwork (2026-11-27/28)
 **Reference labels without Balltime's rally list.** `ml/eval/segment_reference_cut.py ORIGINAL
 CUT OUT.json` matches every 2 s of a Balltime cut to the original (fingerprints) and splits where
 the time offset jumps. Balltime's export pads each rally (-0.4 s start, +2.8 s end vs its list):
@@ -323,6 +323,29 @@ Worker runs on CPU (~15–20 min/match). Owner steps: docs/DEPLOY.md. The Vercel
 (`deploy/api/api/index.py`) runs FastAPI startup on the first request if the runtime skips
 lifespan (tested locally with lifespan off). Speed ideas for later: decode once for proxy +
 embeddings; GPU if a free no-card option appears.
+
+### Cloud run-through, parallel analysis, B2 download cap (2026-11-28) — RESUME HERE
+**Working in the cloud:** phone upload → API → GitHub Worker (repository_dispatch) → ingest
+6.1 min + analysis 9.8 min for a 19-min set on one 4-core runner → 45 rallies (model
+2026-11-27.2). Manual rally editor removed from the video page (owner: the model does the
+cutting).
+
+**Parallel analysis (built, not yet measured):** `vball_worker.shards` + `.github/workflows/
+embed.yml`; worker.yml sets `VBALL_EMBED_SHARDS=4` (worker embeds slice 1, 3 helper runners the
+rest, missing slices redone locally). Slices join bit-for-bit (900/900 rows). First cloud test
+failed (worker lacked `httpx`, fell back to heuristic; fixed), second was blocked by the B2 cap.
+**Next session: check the second upload (video 3332a3c3…), queued for after the reset; its
+analysis is the first real sharded run.** Read its Worker + Embed slice logs (`embed_sharded`,
+`embed_joined` events) and compare with 9.8 min.
+
+**Backblaze free tier = 1 GB/day downloads** (resets 00:00 GMT): one match costs ~0.7 GB
+(original 533 MB to ingest + proxy 184 MB to analyse) before any watching, so ~1 match/day.
+Storage 403s now defer the job to 00:05 GMT without using an attempt (`jobs.defer`). Owner
+(2026-11-28): fine for now; would add a card later if it stays cheap and secure, possibly to
+share privately with friends. Options next: (a) compute model inputs during ingest (saves the
+184 MB proxy download; helpers add back ~140 MB), (b) card on B2 with a daily cap (~$0.01/GB),
+(c) GPU via Modal with a card (setup in git history, commit 8749d4c). If friends get accounts:
+security review of per-owner access first.
 
 ## Decisions to remember
 
