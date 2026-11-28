@@ -8,10 +8,8 @@ import { apiErrorMessage, authedApi } from "@/lib/api/authed";
 import type { components } from "@/lib/api/schema";
 import { formatDuration } from "@/lib/format";
 
-import { EditTools } from "./edit-tools";
 import { ReferenceCard } from "./reference-card";
 import { HighlightsPanel } from "./highlights-panel";
-import { PlayAreaEditor } from "./play-area-editor";
 
 type Video = components["schemas"]["VideoOut"];
 type Rallies = components["schemas"]["RalliesOut"];
@@ -72,9 +70,6 @@ export function VideoPlayer() {
   const [now, setNow] = useState(0);
   const { stars, toggle } = useStars(id);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [areaMode, setAreaMode] = useState(false);
-  const [editBusy, setEditBusy] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     let stale = false;
@@ -137,67 +132,6 @@ export function VideoPlayer() {
     void v.play();
   }
 
-  async function edit(body: {
-    op: "add" | "modify" | "delete";
-    rally_id?: string;
-    start_t?: number;
-    end_t?: number;
-  }) {
-    setEditBusy(true);
-    setEditError(null);
-    const res = await authedApi().POST("/videos/{video_id}/rallies/edits", {
-      params: { path: { video_id: id } },
-      body,
-    });
-    setEditBusy(false);
-    if (res.data) setData(res.data);
-    else setEditError(apiErrorMessage(res.error, res.response.status));
-    return res.data;
-  }
-
-  async function addAtNow() {
-    const t = videoRef.current?.currentTime ?? now;
-    const start = Math.max(0, t - 1);
-    const end = Math.min(video?.duration_s ?? t + 8, t + 7);
-    const d = await edit({ op: "add", start_t: start, end_t: end });
-    const added = d?.rallies.find((r) => Math.abs(r.start_t - start) < 0.05);
-    if (added) setSelectedId(added.id);
-  }
-
-  async function markReviewed() {
-    setEditBusy(true);
-    setEditError(null);
-    const res = await authedApi().POST("/videos/{video_id}/review", {
-      params: { path: { video_id: id } },
-    });
-    setEditBusy(false);
-    if (res.data) setData(res.data);
-    else setEditError(apiErrorMessage(res.error, res.response.status));
-  }
-
-  async function savePlayArea(points: number[][]) {
-    setEditBusy(true);
-    const res = await authedApi().PUT("/videos/{video_id}/play-area", {
-      params: { path: { video_id: id } },
-      body: { points },
-    });
-    setEditBusy(false);
-    if (res.data) {
-      setData(res.data);
-      setAreaMode(false);
-      setReloadKey((k) => k + 1);
-    } else setEditError(apiErrorMessage(res.error, res.response.status));
-  }
-
-  async function reanalyze(sensitivity: number) {
-    const { data: d } = await authedApi().POST("/videos/{video_id}/analyze", {
-      params: { path: { video_id: id } },
-      body: { sensitivity },
-    });
-    if (d) setData(d);
-    setReloadKey((k) => k + 1);
-  }
-
   if (error) {
     return (
       <p role="alert" className="text-red-700 dark:text-red-400">
@@ -215,7 +149,6 @@ export function VideoPlayer() {
         : rallies;
   const selected = rallies.find((r) => r.id === selectedId) ?? current;
   const kept = rallies.reduce((s, r) => s + r.end_t - r.start_t, 0);
-  const sens = data?.analysis?.sensitivity ?? 0;
   const busy = data?.job?.state === "queued" || data?.job?.state === "running";
 
   return (
@@ -260,14 +193,6 @@ export function VideoPlayer() {
               {video.status === "ready" ? "Loading video…" : "Still preparing this video…"}
             </div>
           )}
-          {areaMode && (
-            <PlayAreaEditor
-              initial={data?.play_area}
-              aspect={video.width && video.height ? video.width / video.height : 16 / 9}
-              onSave={savePlayArea}
-              onCancel={() => setAreaMode(false)}
-            />
-          )}
           </div>
           {data?.reference && (
             <ReferenceCard
@@ -282,43 +207,16 @@ export function VideoPlayer() {
             />
           )}
           <div className="mt-3">
-            <EditTools
-              selected={selected}
-              now={now}
-              busy={editBusy || busy}
-              reviewedAt={data?.reviewed_at}
-              onTrim={(r, start, end) => edit({ op: "modify", rally_id: r.id, start_t: start, end_t: end })}
-              onAdd={addAtNow}
-              onDelete={(r) => {
-                if (confirm(`Delete rally #${r.number}?`)) void edit({ op: "delete", rally_id: r.id });
-              }}
-              onReview={markReviewed}
-              onEditArea={() => {
-                videoRef.current?.pause();
-                setRalliesOnly(false);
-                setAreaMode(true);
-              }}
+            <HighlightsPanel
+              videoId={id}
+              allIds={rallies.map((r) => r.id)}
+              starredIds={rallies.filter((r) => stars.has(r.id)).map((r) => r.id)}
+              baseName={video.filename}
             />
-            <div className="mt-3">
-              <HighlightsPanel
-                videoId={id}
-                allIds={rallies.map((r) => r.id)}
-                starredIds={rallies.filter((r) => stars.has(r.id)).map((r) => r.id)}
-                baseName={video.filename}
-              />
-            </div>
-            {editError && (
-              <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">
-                {editError}
-              </p>
-            )}
           </div>
           {data?.analysis && (
             <p className="mt-2 text-xs text-slate-500">
               {describeDetector(data.analysis.detector)}
-              {!data.analysis.used_play_area &&
-                !data.analysis.detector.startsWith("learned:") &&
-                " No play area marked: motion is measured on the whole frame, so people walking past the camera can cause mistakes."}
               {data.analysis.camera_moves.length > 0 &&
                 ` Camera moved ${data.analysis.camera_moves.length}× (at ${data.analysis.camera_moves.map(clock).join(", ")}).`}
             </p>
@@ -348,28 +246,11 @@ export function VideoPlayer() {
               </button>
             ))}
           </div>
-          <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
-            <span>{busy ? "Detecting rallies…" : "Sensitivity"}</span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={busy || sens <= -5}
-                onClick={() => reanalyze(sens - 2)}
-                className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-40 dark:border-slate-700"
-              >
-                Fewer
-              </button>
-              <span className="w-6 text-center tabular-nums">{sens}</span>
-              <button
-                type="button"
-                disabled={busy || sens >= 5}
-                onClick={() => reanalyze(sens + 2)}
-                className="rounded-md border border-slate-300 px-2 py-1 disabled:opacity-40 dark:border-slate-700"
-              >
-                More
-              </button>
-            </div>
-          </div>
+          {busy && data?.analysis && (
+            <p className="border-b border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
+              Finding rallies again…
+            </p>
+          )}
           <ul className="flex-1 overflow-y-auto">
             {!data && <li className="p-4 text-sm text-slate-500">Loading rallies…</li>}
             {data && !data.analysis && (
