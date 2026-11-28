@@ -26,7 +26,7 @@ what comes next. Read this first when picking the project up. Design rationale l
 | M5 Heuristic rally detection in worker | Done locally | Play-area editor UI comes in M6 |
 | M6 Review/correction web UI | Done locally | Trim/add/delete, mark reviewed, play-area editor |
 | M7 Server-side highlights | Done locally | Export all/starred rallies as one MP4 |
-| M8 Deployment (Vercel, Supabase, B2, GitHub Actions) | Deployed 2026-11-28; phone upload test pending | web https://vball-ai-jtsd.vercel.app, API https://vball-ai.vercel.app; docs/DEPLOY.md |
+| M8 Deployment (Vercel, Supabase, B2, Modal) | Deployed 2026-11-28 | web https://vball-ai-jtsd.vercel.app, API https://vball-ai.vercel.app, processing on Modal (GPU); docs/DEPLOY.md |
 
 ## Log
 
@@ -324,7 +324,7 @@ Worker runs on CPU (~15–20 min/match). Owner steps: docs/DEPLOY.md. The Vercel
 lifespan (tested locally with lifespan off). Speed ideas for later: decode once for proxy +
 embeddings; GPU if a free no-card option appears.
 
-### Cloud run-through, parallel analysis, B2 download cap (2026-11-28) — RESUME HERE
+### Cloud run-through, parallel analysis, B2 download cap (2026-11-28)
 **Working in the cloud:** phone upload → API → GitHub Worker (repository_dispatch) → ingest
 6.1 min + analysis 9.8 min for a 19-min set on one 4-core runner → 45 rallies (model
 2026-11-27.2). Manual rally editor removed from the video page (owner: the model does the
@@ -346,6 +346,22 @@ share privately with friends. Options next: (a) compute model inputs during inge
 184 MB proxy download; helpers add back ~140 MB), (b) card on B2 with a daily cap (~$0.01/GB),
 (c) GPU via Modal with a card (setup in git history, commit 8749d4c). If friends get accounts:
 security review of per-owner access first.
+
+### Processing moved to Modal (GPU) (2026-11-28) — RESUME HERE
+Owner added payment methods to Modal and Backblaze (with caps; B2 download cap raised).
+`infra/modal/vball_app.py`: `wake` endpoint (bearer `VBALL_WORKER_WAKE_TOKEN`) called by the
+API after queuing work, `sweep` every 30 min, `cpu_worker` (ingest/highlight, 4 cores),
+`gpu_worker` (analyze, T4); the CPU worker starts the GPU worker for the analysis ingest
+queues. Vercel API has `VBALL_WORKER_WAKE_URL` + token; Modal secret `vball` = production.env.
+GitHub worker is a manual CPU backup (no schedule). Deploy: `PYTHONUTF8=1 uv run --with modal
+modal deploy infra/modal/vball_app.py` (UTF-8 needed on Windows).
+
+Measured: rally analysis of the 19-min set **80 s on the T4 (incl. first model download) vs
+587 s on a GitHub runner**, same 45 rallies. Ingest (playback copy) is still CPU (~6 min on
+GitHub; not yet timed on Modal). Parallel GitHub helpers (embed.yml) are now unused
+(`VBALL_EMBED_SHARDS` defaults to 1 on Modal) and can be removed later. Not yet done: a fresh
+phone upload end to end through Modal; docs/DEPLOY.md still describes the GitHub worker.
+Speed next: ingest on the GPU box (NVENC) or decode once for proxy + embeddings.
 
 ## Decisions to remember
 
