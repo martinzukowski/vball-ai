@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "VBall background worker: ingest (probe, proxy transcode) and analysis jobs"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "httpx>=0.28",
     "numpy>=2.5.5",
     "vball-core",
     "vball-ml",

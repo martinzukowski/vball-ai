@@ -1513,6 +1513,7 @@ name = "vball-worker"
 version = "0.1.0"
 source = { editable = "services/worker" }
 dependencies = [
+    { name = "httpx" },
     { name = "numpy" },
     { name = "vball-core" },
     { name = "vball-ml" },
@@ -1520,6 +1521,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28" },
     { name = "numpy", specifier = ">=2.5.5" },
     { name = "vball-core", editable = "packages/vball_core" },
     { name = "vball-ml", editable = "ml" },
